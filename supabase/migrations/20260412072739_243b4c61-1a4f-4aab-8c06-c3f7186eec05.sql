@@ -3,7 +3,7 @@
 CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql SET search_path = public;
 
 -- 2. admin_config table
-CREATE TABLE IF NOT EXISTS public.admin_config (
+CREATE TABLE public.admin_config (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   panel_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:2053',
   panel_user TEXT NOT NULL DEFAULT 'admin',
@@ -50,39 +50,8 @@ CREATE TRIGGER update_admin_config_updated_at BEFORE UPDATE ON public.admin_conf
 
 INSERT INTO public.admin_config (admin_password_hash) VALUES ('admin123');
 
--- 3. orders table
-CREATE TABLE IF NOT EXISTS public.orders (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  uuid text NOT NULL,
-  email text,
-  plan_name text NOT NULL,
-  months integer NOT NULL,
-  amount numeric NOT NULL,
-  currency text NOT NULL DEFAULT 'CNY',
-  payment_method text NOT NULL,
-  status text NOT NULL DEFAULT 'pending',
-  trade_no text,
-  crypto_amount numeric,
-  crypto_currency text,
-  tx_hash text,
-  notify_data jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  paid_at timestamptz,
-  fulfilled_at timestamptz
-);
-
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public can read own orders by uuid" ON public.orders FOR SELECT TO public USING (true);
-CREATE POLICY "Service can insert orders" ON public.orders FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "Service can update orders" ON public.orders FOR UPDATE TO public USING (true) WITH CHECK (true);
-CREATE POLICY "Service can delete orders" ON public.orders FOR DELETE TO public USING (true);
-
-CREATE OR REPLACE FUNCTION public.update_orders_updated_at() RETURNS trigger LANGUAGE plpgsql SET search_path = 'public' AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
-CREATE TRIGGER orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public.update_orders_updated_at();
-
--- 4. regions table
-CREATE TABLE IF NOT EXISTS public.regions (
+-- 3. regions table
+CREATE TABLE public.regions (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL DEFAULT '新地区',
   inbound_id INTEGER NOT NULL DEFAULT 1,
@@ -102,8 +71,8 @@ CREATE POLICY "Service can update regions" ON public.regions FOR UPDATE TO publi
 CREATE POLICY "Service can delete regions" ON public.regions FOR DELETE TO public USING (true);
 CREATE TRIGGER update_regions_updated_at BEFORE UPDATE ON public.regions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
--- 5. plans table
-CREATE TABLE IF NOT EXISTS public.plans (
+-- 4. plans table
+CREATE TABLE public.plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
   category text NOT NULL DEFAULT 'exclusive',
@@ -134,8 +103,8 @@ INSERT INTO public.plans (title, category, duration_months, duration_days, price
   ('共享季付', 'shared', 3, 90, 40, '多人共享，价格实惠', 5, true),
   ('共享年付', 'shared', 12, 365, 150, '多人共享，价格实惠', 6, false);
 
--- 6. plan_regions table
-CREATE TABLE IF NOT EXISTS public.plan_regions (
+-- 5. plan_regions table
+CREATE TABLE public.plan_regions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_id uuid NOT NULL REFERENCES public.plans(id) ON DELETE CASCADE,
   region_id uuid NOT NULL REFERENCES public.regions(id) ON DELETE CASCADE,
@@ -148,20 +117,74 @@ CREATE POLICY "Public can read plan_regions" ON public.plan_regions FOR SELECT T
 CREATE POLICY "Service can insert plan_regions" ON public.plan_regions FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "Service can delete plan_regions" ON public.plan_regions FOR DELETE TO public USING (true);
 
--- 7. tutorials table
-CREATE TABLE IF NOT EXISTS public.tutorials (
+-- 6. orders table
+CREATE TABLE public.orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title text NOT NULL DEFAULT '',
-  content text NOT NULL DEFAULT '',
-  sort_order integer NOT NULL DEFAULT 0,
-  enabled boolean NOT NULL DEFAULT true,
+  uuid text NOT NULL,
+  email text,
+  plan_name text NOT NULL,
+  months integer NOT NULL,
+  duration_days integer NOT NULL DEFAULT 30,
+  amount numeric NOT NULL,
+  currency text NOT NULL DEFAULT 'CNY',
+  payment_method text NOT NULL,
+  order_type text NOT NULL DEFAULT 'renew',
+  status text NOT NULL DEFAULT 'pending',
+  trade_no text,
+  crypto_amount numeric,
+  crypto_currency text,
+  tx_hash text,
+  notify_data jsonb,
+  inbound_id integer,
+  inbound_remark text DEFAULT '',
+  client_remark text DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  paid_at timestamptz,
+  fulfilled_at timestamptz
+);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read own orders by uuid" ON public.orders FOR SELECT TO public USING (true);
+CREATE POLICY "Service can insert orders" ON public.orders FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Service can update orders" ON public.orders FOR UPDATE TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Service can delete orders" ON public.orders FOR DELETE TO public USING (true);
+
+CREATE OR REPLACE FUNCTION public.update_orders_updated_at() RETURNS trigger LANGUAGE plpgsql SET search_path = 'public' AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+CREATE TRIGGER orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION public.update_orders_updated_at();
+
+-- 7. tutorials table
+CREATE TABLE public.tutorials (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.tutorials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public can read tutorials" ON public.tutorials FOR SELECT TO public USING (true);
-CREATE POLICY "Service can insert tutorials" ON public.tutorials FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "Service can update tutorials" ON public.tutorials FOR UPDATE TO public USING (true) WITH CHECK (true);
-CREATE POLICY "Service can delete tutorials" ON public.tutorials FOR DELETE TO public USING (true);
+CREATE POLICY "Public can read tutorials" ON public.tutorials FOR SELECT USING (true);
+CREATE POLICY "Service can insert tutorials" ON public.tutorials FOR INSERT WITH CHECK (true);
+CREATE POLICY "Service can update tutorials" ON public.tutorials FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Service can delete tutorials" ON public.tutorials FOR DELETE USING (true);
 CREATE TRIGGER update_tutorials_updated_at BEFORE UPDATE ON public.tutorials FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- 8. articles table
+CREATE TABLE public.articles (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read articles" ON public.articles FOR SELECT USING (true);
+CREATE POLICY "Service can insert articles" ON public.articles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Service can update articles" ON public.articles FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Service can delete articles" ON public.articles FOR DELETE USING (true);
+CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON public.articles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
