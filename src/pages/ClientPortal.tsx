@@ -281,7 +281,7 @@ export default function ClientPortal() {
       try {
         if (line.startsWith("vless://") || line.startsWith("trojan://")) {
           const extracted = line.split("://")[1].split("@")[0];
-          if (uuidRegex.test(extracted)) return extracted;
+          if (extracted && extracted.length > 0) return extracted;
         } else if (line.startsWith("vmess://")) {
           const decoded = atob(line.substring(8));
           const json = JSON.parse(decoded);
