@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
       formData.append("total", String(inbound.total));
       formData.append("remark", inbound.remark || "");
       formData.append("enable", String(inbound.enable));
-      formData.append("expiryTime", String(expiryTime));
+      formData.append("expiryTime", String(inbound.expiryTime || 0));
       formData.append("listen", inbound.listen || "");
       formData.append("port", String(inbound.port));
       formData.append("protocol", protocol);
