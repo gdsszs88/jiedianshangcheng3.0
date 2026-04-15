@@ -160,7 +160,7 @@ export default function AdminDashboard() {
   const [regionSearch, setRegionSearch] = useState("");
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [regionInbounds, setRegionInbounds] = useState<{ id: string; region_id: string; inbound_id: number; sort_order: number }[]>([]);
+  const [regionInbounds, setRegionInbounds] = useState<{ id: string; region_id: string; inbound_id: number; sort_order: number; max_clients: number; current_clients: number; protocol: string }[]>([]);
   const [inboundPlans, setInboundPlans] = useState<{ id: string; region_inbound_id: string; plan_id: string }[]>([]);
   const [assignInboundId, setAssignInboundId] = useState<string | null>(null);
   const navigate = useNavigate();
