@@ -1220,52 +1220,83 @@ export default function AdminDashboard() {
                                   const riPlanItems = riPlans.map(ip => plans.find(p => p.id === ip.plan_id)).filter(Boolean) as Plan[];
                                   return (
                                     <div key={ri.id} className="border border-border rounded-xl bg-card p-3">
-                                      <div className="flex items-center gap-3 flex-wrap">
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-xs text-muted-foreground">入站ID:</label>
+                                      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-center">
+                                        <div>
+                                          <label className="text-xs text-muted-foreground">入站ID</label>
                                           <input type="number" value={ri.inbound_id}
                                             onChange={e => setRegionInbounds(prev => prev.map(r => r.id === ri.id ? { ...r, inbound_id: Number(e.target.value) } : r))}
-                                            className="w-20 border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none" />
+                                            className="w-full border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none" />
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-xs text-muted-foreground">排序:</label>
+                                        <div>
+                                          <label className="text-xs text-muted-foreground">协议</label>
+                                          <select value={ri.protocol}
+                                            onChange={e => setRegionInbounds(prev => prev.map(r => r.id === ri.id ? { ...r, protocol: e.target.value } : r))}
+                                            className="w-full border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none">
+                                            <option value="socks">Socks5</option>
+                                            <option value="vless">Vless</option>
+                                            <option value="vmess">Vmess</option>
+                                            <option value="trojan">Trojan</option>
+                                            <option value="mixed">Mixed</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <label className="text-xs text-muted-foreground">最大客户端</label>
+                                          <input type="number" value={ri.max_clients}
+                                            onChange={e => setRegionInbounds(prev => prev.map(r => r.id === ri.id ? { ...r, max_clients: Number(e.target.value) } : r))}
+                                            placeholder="0=不限"
+                                            className="w-full border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none" />
+                                          {ri.max_clients > 0 && (
+                                            <p className="text-[10px] mt-0.5 text-muted-foreground flex items-center gap-1">
+                                              已用: {ri.current_clients}/{ri.max_clients}
+                                              {ri.current_clients > 0 && (
+                                                <button
+                                                  onClick={() => setRegionInbounds(prev => prev.map(r => r.id === ri.id ? { ...r, current_clients: 0 } : r))}
+                                                  className="text-[10px] px-1 rounded bg-destructive/10 text-destructive hover:bg-destructive/20">归0</button>
+                                              )}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <label className="text-xs text-muted-foreground">排序</label>
                                           <input type="number" value={ri.sort_order}
                                             onChange={e => setRegionInbounds(prev => prev.map(r => r.id === ri.id ? { ...r, sort_order: Number(e.target.value) } : r))}
-                                            className="w-16 border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none" />
+                                            className="w-full border border-input p-1.5 rounded text-sm bg-background focus:ring-1 focus:ring-accent outline-none" />
                                         </div>
-                                        <button
-                                          onClick={async () => {
-                                            const key = `saveInbound-${ri.id}`;
-                                            setBtnLoading(key, "保存中...");
-                                            try {
-                                              await adminUpdateRegionInbound(token, ri);
-                                              setBtnLoading(key, "✅");
-                                            } catch { setBtnLoading(key, "❌"); }
-                                            clearBtn(key);
-                                          }}
-                                          disabled={!!btnStatus[`saveInbound-${ri.id}`]}
-                                          className="bg-success text-success-foreground px-2.5 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-70">
-                                          {btnStatus[`saveInbound-${ri.id}`] || "保存"}
-                                        </button>
-                                        <button
-                                          onClick={async () => {
-                                            if (!confirm("确定删除该入站？关联的商品映射也会删除。")) return;
-                                            const key = `delInbound-${ri.id}`;
-                                            setBtnLoading(key, "删除中...");
-                                            try {
-                                              await adminDeleteRegionInbound(token, ri.id);
-                                              setRegionInbounds(prev => prev.filter(r => r.id !== ri.id));
-                                              setInboundPlans(prev => prev.filter(ip => ip.region_inbound_id !== ri.id));
-                                            } catch { setBtnLoading(key, "❌"); clearBtn(key); }
-                                          }}
-                                          className="bg-destructive/10 text-destructive px-2 py-1.5 rounded text-xs font-bold hover:bg-destructive/20">
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={() => setAssignInboundId(assignInboundId === ri.id ? null : ri.id)}
-                                          className="bg-accent/10 text-accent px-2.5 py-1.5 rounded text-xs font-bold hover:bg-accent/20 border border-accent/20">
-                                          <Package className="w-3.5 h-3.5 inline mr-1" />关联商品
-                                        </button>
+                                        <div className="col-span-2 flex items-end gap-1.5 flex-wrap">
+                                          <button
+                                            onClick={async () => {
+                                              const key = `saveInbound-${ri.id}`;
+                                              setBtnLoading(key, "保存中...");
+                                              try {
+                                                await adminUpdateRegionInbound(token, ri);
+                                                setBtnLoading(key, "✅");
+                                              } catch { setBtnLoading(key, "❌"); }
+                                              clearBtn(key);
+                                            }}
+                                            disabled={!!btnStatus[`saveInbound-${ri.id}`]}
+                                            className="bg-success text-success-foreground px-2.5 py-1.5 rounded text-xs font-bold hover:opacity-90 disabled:opacity-70">
+                                            {btnStatus[`saveInbound-${ri.id}`] || "保存"}
+                                          </button>
+                                          <button
+                                            onClick={async () => {
+                                              if (!confirm("确定删除该入站？关联的商品映射也会删除。")) return;
+                                              const key = `delInbound-${ri.id}`;
+                                              setBtnLoading(key, "删除中...");
+                                              try {
+                                                await adminDeleteRegionInbound(token, ri.id);
+                                                setRegionInbounds(prev => prev.filter(r => r.id !== ri.id));
+                                                setInboundPlans(prev => prev.filter(ip => ip.region_inbound_id !== ri.id));
+                                              } catch { setBtnLoading(key, "❌"); clearBtn(key); }
+                                            }}
+                                            className="bg-destructive/10 text-destructive px-2 py-1.5 rounded text-xs font-bold hover:bg-destructive/20">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => setAssignInboundId(assignInboundId === ri.id ? null : ri.id)}
+                                            className="bg-accent/10 text-accent px-2.5 py-1.5 rounded text-xs font-bold hover:bg-accent/20 border border-accent/20">
+                                            <Package className="w-3.5 h-3.5 inline mr-1" />关联商品
+                                          </button>
+                                        </div>
                                       </div>
 
                                       {/* Assigned plans for this inbound */}
