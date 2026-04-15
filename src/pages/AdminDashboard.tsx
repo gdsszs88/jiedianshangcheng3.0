@@ -1150,48 +1150,19 @@ export default function AdminDashboard() {
                         {/* Region edit fields */}
                         <div className="bg-accent/5 px-5 py-4 border-b border-border">
                           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            <div className="md:col-span-3">
+                            <div className="md:col-span-4">
                               <label className="block text-xs text-muted-foreground mb-1">地区名称</label>
                               <input type="text" value={region.name}
                                 onChange={e => updateRegionField(region.id, "name", e.target.value)}
                                 className="w-full border border-input p-2 rounded-lg text-sm bg-background focus:ring-2 focus:ring-accent outline-none font-bold" />
                             </div>
-                            <div className="md:col-span-1">
-                              <label className="block text-xs text-muted-foreground mb-1">最大客户端</label>
-                              <input type="number" value={region.max_clients}
-                                onChange={e => updateRegionField(region.id, "max_clients", Number(e.target.value))}
-                                placeholder="0=不限"
-                                className="w-full border border-input p-2 rounded-lg text-sm bg-background focus:ring-2 focus:ring-accent outline-none" />
-                              {region.max_clients > 0 && (
-                                <p className="text-xs mt-1 text-muted-foreground flex items-center gap-1">
-                                  已用: {region.current_clients}/{region.max_clients}
-                                  {region.current_clients > 0 && (
-                                    <button
-                                      onClick={() => { updateRegionField(region.id, "current_clients", 0); }}
-                                      className="text-[10px] px-1 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                                    >归0</button>
-                                  )}
-                                </p>
-                              )}
-                            </div>
                             <div className="md:col-span-2">
-                              <label className="block text-xs text-muted-foreground mb-1">协议类型</label>
-                              <select value={region.protocol}
-                                onChange={e => updateRegionField(region.id, "protocol", e.target.value)}
-                                className="w-full border border-input p-2 rounded-lg text-sm bg-background focus:ring-2 focus:ring-accent outline-none">
-                                <option value="socks">Socks5 (用户名+密码)</option>
-                                <option value="vless">Vless (UUID)</option>
-                                <option value="vmess">Vmess (UUID)</option>
-                                <option value="trojan">Trojan (UUID)</option>
-                              </select>
-                            </div>
-                            <div className="md:col-span-1">
                               <label className="block text-xs text-muted-foreground mb-1">排序</label>
                               <input type="number" value={region.sort_order}
                                 onChange={e => updateRegionField(region.id, "sort_order", Number(e.target.value))}
                                 className="w-full border border-input p-2 rounded-lg text-sm bg-background focus:ring-2 focus:ring-accent outline-none" />
                             </div>
-                            <div className="md:col-span-1 flex items-end">
+                            <div className="md:col-span-2 flex items-end">
                               <label className="flex items-center gap-1 cursor-pointer text-xs">
                                 <input type="checkbox" checked={region.enabled}
                                   onChange={e => updateRegionField(region.id, "enabled", e.target.checked)}
