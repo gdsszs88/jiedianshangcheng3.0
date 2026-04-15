@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
       .eq("title", order.plan_name);
     
     let foundViaInboundPlans = false;
+    let targetRegionInboundId: string | null = null;
     
     if (matchedPlans && matchedPlans.length > 0) {
       const planIds = matchedPlans.map((p: any) => p.id);
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
       
       if (inboundPlanRows && inboundPlanRows.length > 0) {
         // If regionId is provided, prefer inbound from that region
-        let targetRegionInboundId = inboundPlanRows[0].region_inbound_id;
+        targetRegionInboundId = inboundPlanRows[0].region_inbound_id;
         
         if (regionId) {
           const { data: regionInbounds } = await supabase
@@ -365,17 +366,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Increment current_clients on the region and check stock
-    if (regionId) {
-      const { data: regionData } = await supabase.from("regions").select("current_clients, max_clients, name").eq("id", regionId).single();
-      if (regionData) {
-        const newCount = (regionData.current_clients || 0) + 1;
-        await supabase.from("regions").update({ current_clients: newCount }).eq("id", regionId);
+    // Increment current_clients on the region_inbound and check stock
+    if (foundViaInboundPlans && targetRegionInboundId) {
+      const { data: riStockData } = await supabase
+        .from("region_inbounds")
+        .select("current_clients, max_clients, region_id")
+        .eq("id", targetRegionInboundId)
+        .single();
+      if (riStockData) {
+        const newCount = (riStockData.current_clients || 0) + 1;
+        await supabase.from("region_inbounds").update({ current_clients: newCount }).eq("id", targetRegionInboundId);
 
-        // Send stock-out notification email if max_clients reached
-        if (regionData.max_clients > 0 && newCount >= regionData.max_clients && config.notify_stock_out && config.resend_api_key && config.notify_email) {
+        // Also update legacy regions.current_clients for backward compat
+        if (regionId) {
+          const { data: regionData } = await supabase.from("regions").select("current_clients").eq("id", regionId).single();
+          if (regionData) {
+            await supabase.from("regions").update({ current_clients: (regionData.current_clients || 0) + 1 }).eq("id", regionId);
+          }
+        }
+
+        // Send stock-out notification if max_clients reached
+        if (riStockData.max_clients > 0 && newCount >= riStockData.max_clients && config.resend_api_key && config.notify_email && config.notify_stock_out) {
+          // Get region name for notification
+          let stockRegionName = "未知地区";
+          if (riStockData.region_id) {
+            const { data: rn } = await supabase.from("regions").select("name").eq("id", riStockData.region_id).single();
+            if (rn) stockRegionName = rn.name;
+          }
           try {
-            const emailRes = await fetch("https://api.resend.com/emails", {
+            await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -384,19 +403,26 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 from: `系统通知 <onboarding@resend.dev>`,
                 to: [config.notify_email],
-                subject: `⚠️ 地区「${regionData.name}」库存已用完`,
+                subject: `⚠️ 入站 #${salesInboundId}（${stockRegionName}）库存已用完`,
                 html: `<h2>库存耗尽通知</h2>
-                  <p>地区 <strong>${regionData.name}</strong> 的客户端名额已全部用完。</p>
-                  <p>已用: <strong>${newCount}/${regionData.max_clients}</strong></p>
+                  <p>地区 <strong>${stockRegionName}</strong> 的入站 #${salesInboundId} 名额已全部用完。</p>
+                  <p>已用: <strong>${newCount}/${riStockData.max_clients}</strong></p>
                   <p>请及时补充库存或调整最大客户端数量。</p>
                   <hr><p style="color:#999;font-size:12px;">此邮件由系统自动发送</p>`,
               }),
             });
-            try { console.log("Stock-out notification email sent:", await emailRes.text()); } catch { console.log("Stock-out notification email sent"); }
+            console.log("Stock-out notification email sent");
           } catch (emailErr) {
             console.error("Failed to send stock-out notification:", emailErr);
           }
         }
+      }
+    } else if (regionId) {
+      // Fallback: increment on regions table
+      const { data: regionData } = await supabase.from("regions").select("current_clients, max_clients, name").eq("id", regionId).single();
+      if (regionData) {
+        const newCount = (regionData.current_clients || 0) + 1;
+        await supabase.from("regions").update({ current_clients: newCount }).eq("id", regionId);
       }
     }
 
