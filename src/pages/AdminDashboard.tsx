@@ -202,10 +202,20 @@ export default function AdminDashboard() {
       const res = await adminGetRegions(token);
       if (res?.regions) {
         setRegions(res.regions);
+        // Also load region inbounds
+        loadRegionInbounds();
         return res.regions as Region[];
       }
     } catch {}
     return null;
+  };
+
+  const loadRegionInbounds = async (regionId?: string) => {
+    try {
+      const res = await adminGetRegionInbounds(token, regionId);
+      if (res?.regionInbounds) setRegionInbounds(res.regionInbounds);
+      if (res?.inboundPlans) setInboundPlans(res.inboundPlans);
+    } catch {}
   };
 
   const loadTutorials = async () => {
