@@ -370,22 +370,31 @@ export type Database = {
       region_inbounds: {
         Row: {
           created_at: string
+          current_clients: number
           id: string
           inbound_id: number
+          max_clients: number
+          protocol: string
           region_id: string
           sort_order: number
         }
         Insert: {
           created_at?: string
+          current_clients?: number
           id?: string
           inbound_id?: number
+          max_clients?: number
+          protocol?: string
           region_id: string
           sort_order?: number
         }
         Update: {
           created_at?: string
+          current_clients?: number
           id?: string
           inbound_id?: number
+          max_clients?: number
+          protocol?: string
           region_id?: string
           sort_order?: number
         }
