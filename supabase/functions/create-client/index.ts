@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
       .eq("title", order.plan_name);
     
     let foundViaInboundPlans = false;
+    let targetRegionInboundId: string | null = null;
     
     if (matchedPlans && matchedPlans.length > 0) {
       const planIds = matchedPlans.map((p: any) => p.id);
