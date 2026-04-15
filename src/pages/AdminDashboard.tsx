@@ -1109,7 +1109,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                💡 每个地区拥有独立的入站ID和协议配置。添加地区后，可在下方为该地区添加独享/共享套餐。用户购买开通时将按地区分组展示。
+                💡 每个地区可配置多个入站ID，每个入站ID可关联不同商品。用户购买时，系统会根据商品所关联的入站ID自动开通到对应入站。
               </p>
 
               {regions.length === 0 ? (
