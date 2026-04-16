@@ -197,6 +197,8 @@ export default function ClientPortal() {
   const [dynamicRegions, setDynamicRegions] = useState<RegionItem[]>([]);
   const [selectedBuyRegion, setSelectedBuyRegion] = useState<string | null>(null);
   const [dynamicPlanRegions, setDynamicPlanRegions] = useState<{ plan_id: string; region_id: string }[]>([]);
+  const [regionInbounds, setRegionInbounds] = useState<any[]>([]);
+  const [inboundPlansData, setInboundPlansData] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [checkoutData, setCheckoutData] = useState<{ months: number; durationDays: number; price: number; planName: string; type: string; regionId?: string | null } | null>(null);
