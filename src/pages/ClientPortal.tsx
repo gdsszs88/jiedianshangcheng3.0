@@ -1348,10 +1348,10 @@ export default function ClientPortal() {
                         const activeRegionId = selectedBuyRegion || dynamicRegions[0]?.id;
                         const region = dynamicRegions.find(r => r.id === activeRegionId);
                         if (!region) return null;
-                        const regionPlanIds = dynamicPlanRegions.filter(pr => pr.region_id === region.id).map(pr => pr.plan_id);
+                        const regionPlanIds = mergedPlanRegions.filter(pr => pr.region_id === region.id).map(pr => pr.plan_id);
                         const regionExclusive = dynamicPlans.filter(p => regionPlanIds.includes(p.id) && p.category === "new_exclusive");
                         const regionShared = dynamicPlans.filter(p => regionPlanIds.includes(p.id) && p.category === "new_shared");
-                        const isSoldOut = region.max_clients > 0 && region.current_clients >= region.max_clients;
+                        const isSoldOut = isRegionSoldOut[region.id] || false;
 
                         return (
                           <div>
