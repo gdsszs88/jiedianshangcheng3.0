@@ -248,6 +248,12 @@ export default function ClientPortal() {
     getPlanRegions()
       .then(setDynamicPlanRegions)
       .catch(() => {});
+    getRegionInbounds()
+      .then(setRegionInbounds)
+      .catch(() => {});
+    getInboundPlans()
+      .then(setInboundPlansData)
+      .catch(() => {});
     getTutorials()
       .then(setTutorials)
       .catch(() => {});
