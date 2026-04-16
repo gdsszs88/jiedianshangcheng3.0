@@ -312,6 +312,7 @@ export default function ClientPortal() {
     return map;
   }, [dynamicRegions, regionInbounds]);
 
+  const extractIdentifier = (input: string): string | null => {
     const trimmed = input.trim();
     if (!trimmed) return null;
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
