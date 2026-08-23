@@ -27,6 +27,19 @@ type HistoryItem = {
   oldConnectionRemarks?: { uuid: string; remark: string; inboundId: number | null }[];
 };
 
+type StaleTrafficGroup = {
+  uuid: string;
+  remark: string;
+  inboundId: number | null;
+  panel: string;
+  firstSeen: string;
+  lastSeen: string;
+  count: number;
+  latestUsed: number;
+  previousUsed: number;
+  increasedBytes: number;
+};
+
 const NICE_NAME: Record<string, string> = {
   "auto-reset-traffic-hourly": "自动重置流量（每小时整点）",
   "enforce-disabled-quota-every-5min": "强制同步超额关闭（每 5 分钟）",
@@ -111,10 +124,17 @@ function countdown(d: Date | null): string {
   return `${sec}秒后`;
 }
 
+function fmtGb(bytes?: number): string {
+  const n = Number(bytes || 0);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `${(n / 1073741824).toFixed(2)} GB`;
+}
+
 export default function CronStatusPanel() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [enforceQuotaHistory, setEnforceQuotaHistory] = useState<HistoryItem[]>([]);
+  const [staleTrafficGroups, setStaleTrafficGroups] = useState<StaleTrafficGroup[]>([]);
   const [backfillHistory, setBackfillHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [enforcing, setEnforcing] = useState(false);
@@ -136,6 +156,7 @@ export default function CronStatusPanel() {
       setJobs(res?.jobs || []);
       setHistory(res?.history || []);
       setEnforceQuotaHistory(res?.enforceQuotaHistory || []);
+      setStaleTrafficGroups(res?.staleTrafficGroups || []);
       setBackfillHistory(res?.backfillHistory || []);
     } catch (e: any) {
       if (!silent) setError(e?.message || "加载失败");
@@ -255,7 +276,48 @@ export default function CronStatusPanel() {
           {showEnforceQuota ? "隐藏超额关闭历史" : "查看超额关闭历史（最近 20 次）"}
         </button>
         {showEnforceQuota && (
-          <div className="mb-3 overflow-x-auto">
+          <div className="mb-3 space-y-3">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <div className="text-xs font-bold text-amber-700 dark:text-amber-300 mb-2">
+                流量上涨 UUID 分组记录（最近 300 次超额关闭日志）
+              </div>
+              {staleTrafficGroups.length === 0 ? (
+                <div className="text-xs text-muted-foreground">暂无已禁用后继续上涨的 UUID</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="text-left py-1.5 pr-3">UUID / 备注</th>
+                        <th className="text-left py-1.5 pr-3">入站</th>
+                        <th className="text-left py-1.5 pr-3">提醒次数</th>
+                        <th className="text-left py-1.5 pr-3">上次流量</th>
+                        <th className="text-left py-1.5 pr-3">当前流量</th>
+                        <th className="text-left py-1.5 pr-3">上涨</th>
+                        <th className="text-left py-1.5">最近提醒</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {staleTrafficGroups.map((item) => (
+                        <tr key={item.uuid} className="border-b border-border/60">
+                          <td className="py-1.5 pr-3 max-w-[300px]">
+                            <div className="font-bold truncate" title={item.remark || item.uuid}>{item.remark || item.uuid}</div>
+                            <div className="text-[10px] text-muted-foreground truncate" title={item.uuid}>{item.uuid}</div>
+                          </td>
+                          <td className="py-1.5 pr-3">{item.inboundId ?? "—"}</td>
+                          <td className="py-1.5 pr-3 text-amber-600 dark:text-amber-400 font-bold">{item.count}</td>
+                          <td className="py-1.5 pr-3 text-muted-foreground">{fmtGb(item.previousUsed)}</td>
+                          <td className="py-1.5 pr-3 font-bold">{fmtGb(item.latestUsed)}</td>
+                          <td className="py-1.5 pr-3 text-destructive font-bold">{fmtGb(item.increasedBytes)}</td>
+                          <td className="py-1.5">{fmt(item.lastSeen)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
@@ -327,6 +389,7 @@ export default function CronStatusPanel() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

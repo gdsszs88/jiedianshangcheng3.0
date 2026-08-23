@@ -94,12 +94,63 @@ Deno.serve(async (req) => {
         };
       });
     }
+
+    async function loadStaleTrafficGroups() {
+      const r = await client.queryObject<{
+        created_at: Date; details: any;
+      }>(
+        `SELECT created_at, details
+         FROM public.cron_execution_logs
+         WHERE job_name = 'enforce-disabled-quota'
+         ORDER BY created_at DESC LIMIT 300`,
+      );
+      const groups = new Map<string, any>();
+      for (const row of r.rows) {
+        const results = Array.isArray(row.details?.results) ? row.details.results : [];
+        for (const item of results) {
+          if (item?.stillAliveSuspect !== true) continue;
+          const uuid = String(item?.identifier || "");
+          if (!uuid) continue;
+          const previousUsed = Number(item?.previousUsed || 0);
+          const used = Number(item?.used || 0);
+          const increasedBytes = previousUsed > 0 && used > previousUsed ? used - previousUsed : 0;
+          const current = groups.get(uuid) || {
+            uuid,
+            remark: item?.remark || "",
+            inboundId: item?.inboundId || null,
+            panel: item?.panel || "",
+            firstSeen: row.created_at,
+            lastSeen: row.created_at,
+            count: 0,
+            latestUsed: used,
+            previousUsed,
+            increasedBytes,
+          };
+          current.count += 1;
+          if (new Date(row.created_at).getTime() > new Date(current.lastSeen).getTime()) {
+            current.lastSeen = row.created_at;
+            current.remark = item?.remark || current.remark;
+            current.inboundId = item?.inboundId || current.inboundId;
+            current.panel = item?.panel || current.panel;
+            current.latestUsed = used;
+            current.previousUsed = previousUsed;
+            current.increasedBytes = increasedBytes;
+          }
+          if (new Date(row.created_at).getTime() < new Date(current.firstSeen).getTime()) {
+            current.firstSeen = row.created_at;
+          }
+          groups.set(uuid, current);
+        }
+      }
+      return [...groups.values()].sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
+    }
     const history = await loadHistory("auto-reset-traffic");
     const enforceQuotaHistory = await loadHistory("enforce-disabled-quota");
     const backfillHistory = await loadHistory("auto-backfill-client-records");
+    const staleTrafficGroups = await loadStaleTrafficGroups();
 
     return new Response(
-      JSON.stringify({ success: true, jobs, history, enforceQuotaHistory, backfillHistory, now: new Date().toISOString() }),
+      JSON.stringify({ success: true, jobs, history, enforceQuotaHistory, staleTrafficGroups, backfillHistory, now: new Date().toISOString() }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
