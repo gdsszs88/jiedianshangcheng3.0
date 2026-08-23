@@ -23,6 +23,8 @@ type HistoryItem = {
   skipped?: number;
   failed?: number;
   source?: string;
+  oldConnectionSuspects?: number;
+  oldConnectionRemarks?: { uuid: string; remark: string; inboundId: number | null }[];
 };
 
 const NICE_NAME: Record<string, string> = {
@@ -261,12 +263,13 @@ export default function CronStatusPanel() {
                   <th className="text-left py-1.5 pr-3">同步保存</th>
                   <th className="text-left py-1.5 pr-3">跳过</th>
                   <th className="text-left py-1.5 pr-3">失败</th>
+                  <th className="text-left py-1.5 pr-3">旧连接</th>
                   <th className="text-left py-1.5">状态</th>
                 </tr>
               </thead>
               <tbody>
                 {enforceQuotaHistory.length === 0 && (
-                  <tr><td colSpan={8} className="py-3 text-muted-foreground text-center">暂无执行记录</td></tr>
+                  <tr><td colSpan={9} className="py-3 text-muted-foreground text-center">暂无执行记录</td></tr>
                 )}
                 {enforceQuotaHistory.map((h, i) => (
                   <tr key={i} className="border-b border-border/60">
@@ -286,6 +289,29 @@ export default function CronStatusPanel() {
                     <td className="py-1.5 pr-3 text-muted-foreground">{h.skipped ?? 0}</td>
                     <td className="py-1.5 pr-3">
                       <span className={(h.failed ?? 0) > 0 ? "text-destructive font-bold" : "text-muted-foreground"}>{h.failed ?? 0}</span>
+                    </td>
+                    <td className="py-1.5 pr-3">
+                      {(h.oldConnectionSuspects ?? 0) > 0 ? (
+                        <div className="max-w-[260px]">
+                          <div className="text-amber-600 dark:text-amber-400 font-bold">
+                            {h.oldConnectionSuspects} 个疑似旧连接未断
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            已禁用但流量仍可能上涨，需手动重启 x-ui/服务器
+                          </div>
+                          {(h.oldConnectionRemarks || []).length > 0 && (
+                            <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
+                              {(h.oldConnectionRemarks || []).map((item, idx) => (
+                                <div key={idx} className="truncate" title={`${item.uuid} ${item.remark}`}>
+                                  入站 {item.inboundId ?? "—"}：{item.remark || item.uuid}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </td>
                     <td className="py-1.5">
                       {(h.failed ?? 0) === 0 ? (

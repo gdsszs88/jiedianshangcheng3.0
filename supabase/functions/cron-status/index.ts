@@ -65,24 +65,39 @@ Deno.serve(async (req) => {
     async function loadHistory(jobName: string) {
       const r = await client.queryObject<{
         created_at: Date; checked: number; reset_count: number; skipped_count: number;
-        failed_count: number; trigger_source: string;
+        failed_count: number; trigger_source: string; details: any;
       }>(
-        `SELECT created_at, checked, reset_count, skipped_count, failed_count, trigger_source
+        `SELECT created_at, checked, reset_count, skipped_count, failed_count, trigger_source, details
          FROM public.cron_execution_logs
          WHERE job_name = $1
          ORDER BY created_at DESC LIMIT 20`,
         [jobName],
       );
-      return r.rows.map((x) => ({
-        startTime: x.created_at,
-        endTime: x.created_at,
-        status: "succeeded",
-        checked: Number(x.checked),
-        reset: Number(x.reset_count),
-        skipped: Number(x.skipped_count),
-        failed: Number(x.failed_count),
-        source: x.trigger_source,
-      }));
+      return r.rows.map((x) => {
+        const results = Array.isArray(x.details?.results) ? x.details.results : [];
+        const oldConnectionSuspects = results.filter((item: any) => {
+          const used = Number(item?.used || 0);
+          const total = Number(item?.total || 0);
+          return item?.stillAliveSuspect === true ||
+            (item?.alreadyDisabled === true && item?.updateClientApplied === true && total > 0 && used >= total);
+        });
+        return {
+          startTime: x.created_at,
+          endTime: x.created_at,
+          status: "succeeded",
+          checked: Number(x.checked),
+          reset: Number(x.reset_count),
+          skipped: Number(x.skipped_count),
+          failed: Number(x.failed_count),
+          source: x.trigger_source,
+          oldConnectionSuspects: oldConnectionSuspects.length,
+          oldConnectionRemarks: oldConnectionSuspects.slice(0, 5).map((item: any) => ({
+            uuid: item?.identifier || "",
+            remark: item?.remark || "",
+            inboundId: item?.inboundId || null,
+          })),
+        };
+      });
     }
     const history = await loadHistory("auto-reset-traffic");
     const enforceQuotaHistory = await loadHistory("enforce-disabled-quota");

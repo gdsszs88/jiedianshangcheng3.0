@@ -395,6 +395,7 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
           total,
           runtimeEnable: stats?.enable,
           alreadyDisabled: !wasEnabledInSettings && !runtimeMayStillBeEnabled,
+          stillAliveSuspect,
           updateClientApplied,
           error: updateClientError || undefined,
         });
