@@ -75,12 +75,7 @@ Deno.serve(async (req) => {
       );
       return r.rows.map((x) => {
         const results = Array.isArray(x.details?.results) ? x.details.results : [];
-        const oldConnectionSuspects = results.filter((item: any) => {
-          const used = Number(item?.used || 0);
-          const total = Number(item?.total || 0);
-          return item?.stillAliveSuspect === true ||
-            (item?.alreadyDisabled === true && item?.updateClientApplied === true && total > 0 && used >= total);
-        });
+        const oldConnectionSuspects = results.filter((item: any) => item?.stillAliveSuspect === true);
         return {
           startTime: x.created_at,
           endTime: x.created_at,

@@ -24,6 +24,7 @@ async function safeJson(res: Response): Promise<any> {
 }
 
 const GB = 1073741824;
+const STALE_CONNECTION_ALERT_BYTES = 10 * 1024 * 1024;
 
 function normalizeTrafficLimitBytes(value: any): number {
   const n = Number(value || 0);
@@ -355,7 +356,8 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
         // 或没有上一次快照（无法判断是否还在跑），都必须整条 inbound 保存并重启 Xray，
         // 否则已建立的旧连接会一直存活（之前"看着已关闭却还能用"的根因）。
         const before = prevUsed.get(String(identifier));
-        const stillAliveSuspect = typeof before !== "number" || used > before || runtimeMayStillBeEnabled;
+        const trafficIncreasedAfterDisable = typeof before === "number" && used > before + STALE_CONNECTION_ALERT_BYTES;
+        const stillAliveSuspect = trafficIncreasedAfterDisable || runtimeMayStillBeEnabled;
         if (!wasEnabledInSettings && stillAliveSuspect) {
           needXrayRestart = true;
           changed = true; // 触发 /panel/api/inbounds/update，等同于面板里手动「编辑→保存」
@@ -396,6 +398,8 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
           runtimeEnable: stats?.enable,
           alreadyDisabled: !wasEnabledInSettings && !runtimeMayStillBeEnabled,
           stillAliveSuspect,
+          previousUsed: before,
+          trafficIncreasedAfterDisable,
           updateClientApplied,
           error: updateClientError || undefined,
         });

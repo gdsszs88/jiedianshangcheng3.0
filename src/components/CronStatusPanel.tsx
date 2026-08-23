@@ -125,9 +125,12 @@ export default function CronStatusPanel() {
   const [enforceResult, setEnforceResult] = useState("");
   const [tick, setTick] = useState(0);
 
-  async function load() {
-    setLoading(true);
-    setError("");
+  async function load(options?: { silent?: boolean }) {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const res: any = await getCronStatus();
       setJobs(res?.jobs || []);
@@ -135,9 +138,9 @@ export default function CronStatusPanel() {
       setEnforceQuotaHistory(res?.enforceQuotaHistory || []);
       setBackfillHistory(res?.backfillHistory || []);
     } catch (e: any) {
-      setError(e?.message || "加载失败");
+      if (!silent) setError(e?.message || "加载失败");
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
 
   async function runEnforceQuota() {
@@ -158,7 +161,7 @@ export default function CronStatusPanel() {
   useEffect(() => { load(); }, []);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
-    const refresh = setInterval(() => load(), 30000);
+    const refresh = setInterval(() => load({ silent: true }), 10000);
     return () => { clearInterval(id); clearInterval(refresh); };
   }, []);
 
@@ -169,11 +172,11 @@ export default function CronStatusPanel() {
           <Clock className="w-4 h-4" /> 定时任务实时状态
         </h3>
         <button
-          onClick={load}
+          onClick={() => load()}
           disabled={loading}
           className="text-xs text-admin-primary hover:underline flex items-center gap-1 disabled:opacity-60">
           <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          刷新
+          刷新（10秒自动刷新）
         </button>
       </div>
 
