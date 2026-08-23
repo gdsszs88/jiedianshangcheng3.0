@@ -364,11 +364,17 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
         }
 
         const clientKey = c.id || c.password || c.email || "";
-        let updateClientApplied = false;
-        let updateClientError = "";
-        // 无论 settings 里是否已经是 enable=false，都强制调用 updateClient，
-        // 让 3x-ui / Xray 立即应用关闭状态（旧逻辑会漏掉 alreadyDisabled 的在线连接）
-        if (clientKey) {
+        const autoClientSaveReason = wasEnabledInSettings
+          ? "newly-disabled"
+          : trafficIncreasedAfterDisable
+            ? "traffic-increased-after-disabled"
+            : runtimeMayStillBeEnabled
+              ? "runtime-still-enabled"
+              : "";
+        const shouldAutoSaveClient = !!clientKey && !!autoClientSaveReason;
+        let autoClientSaveApplied = false;
+        let autoClientSaveError = "";
+        if (shouldAutoSaveClient) {
           try {
             const clientUpdateRes = await fetchUnsafe(`${baseUrl}/panel/api/inbounds/updateClient/${encodeURIComponent(clientKey)}`, {
               method: "POST",
@@ -376,16 +382,16 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
               body: JSON.stringify({ id: inbound.id, settings: JSON.stringify({ clients: [{ ...c, enable: false }] }) }),
             });
             const clientUpdateBody = await safeJson(clientUpdateRes);
-            updateClientApplied = clientUpdateBody?.success === true;
-            if (!updateClientApplied) updateClientError = "update-client-failed";
+            autoClientSaveApplied = clientUpdateBody?.success === true;
+            if (!autoClientSaveApplied) autoClientSaveError = "update-client-failed";
           } catch (e) {
-            updateClientError = String(e);
+            autoClientSaveError = String(e);
           }
         }
 
-        if (wasEnabledInSettings || updateClientApplied) enforced++;
+        if (wasEnabledInSettings || autoClientSaveApplied) enforced++;
         else skipped++;
-        if (updateClientError) failed++;
+        if (autoClientSaveError) failed++;
 
 
         results.push({
@@ -400,8 +406,10 @@ async function enforceQuotaOnAllPanels(supabase: any, triggerSource: string) {
           stillAliveSuspect,
           previousUsed: before,
           trafficIncreasedAfterDisable,
-          updateClientApplied,
-          error: updateClientError || undefined,
+          autoClientSaveReason: autoClientSaveReason || undefined,
+          autoClientSaveApplied,
+          updateClientApplied: autoClientSaveApplied,
+          error: autoClientSaveError || undefined,
         });
       }
 

@@ -90,6 +90,8 @@ Deno.serve(async (req) => {
             uuid: item?.identifier || "",
             remark: item?.remark || "",
             inboundId: item?.inboundId || null,
+            autoClientSaveApplied: item?.autoClientSaveApplied === true,
+            autoClientSaveReason: item?.autoClientSaveReason || "",
           })),
         };
       });
@@ -125,8 +127,12 @@ Deno.serve(async (req) => {
             latestUsed: used,
             previousUsed,
             increasedBytes,
+            autoClientSaveCount: 0,
+            lastAutoClientSaveApplied: false,
+            lastAutoClientSaveReason: "",
           };
           current.count += 1;
+          if (item?.autoClientSaveApplied === true) current.autoClientSaveCount += 1;
           if (new Date(row.created_at).getTime() > new Date(current.lastSeen).getTime()) {
             current.lastSeen = row.created_at;
             current.remark = item?.remark || current.remark;
@@ -135,6 +141,8 @@ Deno.serve(async (req) => {
             current.latestUsed = used;
             current.previousUsed = previousUsed;
             current.increasedBytes = increasedBytes;
+            current.lastAutoClientSaveApplied = item?.autoClientSaveApplied === true;
+            current.lastAutoClientSaveReason = item?.autoClientSaveReason || "";
           }
           if (new Date(row.created_at).getTime() < new Date(current.firstSeen).getTime()) {
             current.firstSeen = row.created_at;

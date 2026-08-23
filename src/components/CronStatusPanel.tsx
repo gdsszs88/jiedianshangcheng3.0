@@ -24,7 +24,13 @@ type HistoryItem = {
   failed?: number;
   source?: string;
   oldConnectionSuspects?: number;
-  oldConnectionRemarks?: { uuid: string; remark: string; inboundId: number | null }[];
+  oldConnectionRemarks?: {
+    uuid: string;
+    remark: string;
+    inboundId: number | null;
+    autoClientSaveApplied?: boolean;
+    autoClientSaveReason?: string;
+  }[];
 };
 
 type StaleTrafficGroup = {
@@ -38,6 +44,9 @@ type StaleTrafficGroup = {
   latestUsed: number;
   previousUsed: number;
   increasedBytes: number;
+  autoClientSaveCount: number;
+  lastAutoClientSaveApplied: boolean;
+  lastAutoClientSaveReason: string;
 };
 
 const NICE_NAME: Record<string, string> = {
@@ -294,6 +303,7 @@ export default function CronStatusPanel() {
                         <th className="text-left py-1.5 pr-3">上次流量</th>
                         <th className="text-left py-1.5 pr-3">当前流量</th>
                         <th className="text-left py-1.5 pr-3">上涨</th>
+                        <th className="text-left py-1.5 pr-3">自动保存</th>
                         <th className="text-left py-1.5">最近提醒</th>
                       </tr>
                     </thead>
@@ -309,6 +319,14 @@ export default function CronStatusPanel() {
                           <td className="py-1.5 pr-3 text-muted-foreground">{fmtGb(item.previousUsed)}</td>
                           <td className="py-1.5 pr-3 font-bold">{fmtGb(item.latestUsed)}</td>
                           <td className="py-1.5 pr-3 text-destructive font-bold">{fmtGb(item.increasedBytes)}</td>
+                          <td className="py-1.5 pr-3">
+                            <div className={item.lastAutoClientSaveApplied ? "text-emerald-600 font-bold" : "text-muted-foreground"}>
+                              {item.lastAutoClientSaveApplied ? "已自动保存" : "未执行"}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              共 {item.autoClientSaveCount || 0} 次
+                            </div>
+                          </td>
                           <td className="py-1.5">{fmt(item.lastSeen)}</td>
                         </tr>
                       ))}
@@ -369,6 +387,7 @@ export default function CronStatusPanel() {
                               {(h.oldConnectionRemarks || []).map((item, idx) => (
                                 <div key={idx} className="truncate" title={`${item.uuid} ${item.remark}`}>
                                   入站 {item.inboundId ?? "—"}：{item.remark || item.uuid}
+                                  {item.autoClientSaveApplied ? "（已自动保存）" : ""}
                                 </div>
                               ))}
                             </div>
