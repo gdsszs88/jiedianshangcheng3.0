@@ -256,6 +256,7 @@ export default function ClientPortal() {
   const [topupConfirmOpen, setTopupConfirmOpen] = useState(false);
   const [topupBlockedOpen, setTopupBlockedOpen] = useState(false);
   const [topupBlockedReason, setTopupBlockedReason] = useState<"blacklist" | "expired">("blacklist");
+  const [connectionQrOpen, setConnectionQrOpen] = useState(false);
   const topupBlacklistSet = useMemo(
     () =>
       new Set(
@@ -1464,27 +1465,38 @@ export default function ClientPortal() {
                       {clientData.email}
                     </span>
                     {buildLatestLink() && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const link = buildLatestLink();
-                          if (link) copyWithFeedback(link, "latest_link");
-                        }}
-                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-medium transition-colors"
-                        title="复制最新链接（已替换为当前最新备注）"
-                      >
-                        {copiedKey === "latest_link" ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                            <span className="text-green-500">已复制最新链接</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>复制最新链接</span>
-                          </>
-                        )}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const link = buildLatestLink();
+                            if (link) copyWithFeedback(link, "latest_link");
+                          }}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-medium transition-colors"
+                          title="复制最新链接（已替换为当前最新备注）"
+                        >
+                          {copiedKey === "latest_link" ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                              <span className="text-green-500">已复制最新链接</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>复制最新链接</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConnectionQrOpen(true)}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-medium transition-colors"
+                          title="扫描二维码导入当前节点"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>扫描二维码导入</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
@@ -2879,6 +2891,61 @@ export default function ClientPortal() {
           )}
         </div>
       </div>
+      {connectionQrOpen && buildLatestLink() && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConnectionQrOpen(false)}>
+          <div className="bg-card max-w-sm w-full p-6 rounded-2xl shadow-2xl border border-border text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 text-left">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">扫描二维码导入节点</h3>
+                <p className="text-xs text-muted-foreground mt-1">使用 v2rayN、Shadowrocket、V2Box 等客户端扫码导入</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConnectionQrOpen(false)}
+                className="w-8 h-8 rounded-full border border-border hover:bg-muted text-muted-foreground"
+                aria-label="关闭二维码弹窗"
+              >
+                ×
+              </button>
+            </div>
+            <div className="inline-block bg-white p-4 rounded-xl border border-border shadow-sm">
+              <QRCodeSVG value={buildLatestLink() || ""} size={220} level="H" includeMargin />
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground break-all text-left bg-muted/60 border border-border rounded-lg p-3">
+              {buildLatestLink()}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const link = buildLatestLink();
+                  if (link) copyWithFeedback(link, "latest_qr_link");
+                }}
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted text-sm font-bold inline-flex items-center gap-1"
+              >
+                {copiedKey === "latest_qr_link" ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    复制链接
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConnectionQrOpen(false)}
+                className="px-4 py-2 rounded-lg bg-client-primary text-client-primary-foreground text-sm font-bold hover:opacity-90"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {topupBlockedOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setTopupBlockedOpen(false)}>
           <div className="bg-card max-w-md w-full p-6 rounded-2xl shadow-2xl border border-border" onClick={(e) => e.stopPropagation()}>
