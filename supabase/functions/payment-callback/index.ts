@@ -1,13 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-function isInTopupBlacklist(uuid: string, blacklist: string | null | undefined) {
-  if (!uuid || uuid === "游客_未登录") return false;
+function getBlacklistRule(uuid: string, blacklist: string | null | undefined) {
+  if (!uuid || uuid === "游客_未登录") return { blockRenew: false, blockTopup: false };
   const normalizedUuid = String(uuid).trim().toLowerCase();
-  return String(blacklist || "")
+  const text = String(blacklist || "").trim();
+  if (!text) return { blockRenew: false, blockTopup: false };
+  try {
+    const parsed = JSON.parse(text);
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+    const found = items.find((item: any) => String(item?.uuid || "").trim().toLowerCase() === normalizedUuid);
+    if (found) {
+      return {
+        blockRenew: found.blockRenew !== false,
+        blockTopup: found.blockTopup !== false,
+      };
+    }
+    return { blockRenew: false, blockTopup: false };
+  } catch {}
+
+  const legacyBlocked = text
     .split(/[\s,;]+/)
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
     .includes(normalizedUuid);
+  return { blockRenew: legacyBlocked, blockTopup: legacyBlocked };
 }
 
 function safeAdd(x: number, y: number) {
@@ -968,8 +984,11 @@ Deno.serve(async (req) => {
             .limit(1)
             .maybeSingle();
 
-          if (isInTopupBlacklist(uuid, blacklistCfg?.topup_blacklist)) {
-            return new Response(JSON.stringify({ error: "特殊套餐账户无法自助充值或续费，请联系管理员处理" }), {
+          const blacklistRule = getBlacklistRule(uuid, blacklistCfg?.topup_blacklist);
+          const blocked = normalizedOrderType === "renew" ? blacklistRule.blockRenew : blacklistRule.blockTopup;
+          if (blocked) {
+            const actionText = normalizedOrderType === "renew" ? "续费" : "购买流量包";
+            return new Response(JSON.stringify({ error: `特殊套餐账户无法自助${actionText}，请联系管理员处理` }), {
               status: 403,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });

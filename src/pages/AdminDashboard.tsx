@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Settings, Server, QrCode, Bitcoin, CheckCircle2, Plus, Trash2, Package, ClipboardList, Search, ChevronLeft, ChevronRight, ShoppingCart, CreditCard, MapPin, ChevronDown, BookOpen, FileText, CalendarDays, WalletCards } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -116,6 +116,52 @@ interface RevenueStat {
   totalCount: number;
 }
 
+type BlacklistRule = {
+  uuid: string;
+  blockRenew: boolean;
+  blockTopup: boolean;
+};
+
+function parseBlacklistRules(raw: string | null | undefined): BlacklistRule[] {
+  const text = String(raw || "").trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+    if (items.length > 0) {
+      return items
+        .map((item: any) => ({
+          uuid: String(item?.uuid || "").trim(),
+          blockRenew: item?.blockRenew !== false,
+          blockTopup: item?.blockTopup !== false,
+        }))
+        .filter((item) => item.uuid);
+    }
+  } catch {}
+  return text
+    .split(/[\s,;]+/)
+    .map((uuid) => uuid.trim())
+    .filter(Boolean)
+    .map((uuid) => ({ uuid, blockRenew: true, blockTopup: true }));
+}
+
+function serializeBlacklistRules(rules: BlacklistRule[]): string {
+  const seen = new Set<string>();
+  const items = rules
+    .map((rule) => ({
+      uuid: rule.uuid.trim(),
+      blockRenew: rule.blockRenew !== false,
+      blockTopup: rule.blockTopup !== false,
+    }))
+    .filter((rule) => {
+      const key = rule.uuid.toLowerCase();
+      if (!rule.uuid || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return items.length ? JSON.stringify({ version: 1, items }, null, 2) : "";
+}
+
 const defaultConfig: AdminConfigData = {
   panelUrl: "",
   panelUser: "admin",
@@ -195,6 +241,10 @@ export default function AdminDashboard() {
   const [productSubTab, setProductSubTab] = useState<"all" | "exclusive" | "shared">("all");
   const navigate = useNavigate();
   const token = sessionStorage.getItem("admin_token") || "";
+  const blacklistRules = useMemo(() => parseBlacklistRules(config.topupBlacklist), [config.topupBlacklist]);
+  const updateBlacklistRules = (rules: BlacklistRule[]) => {
+    setConfig((prev) => ({ ...prev, topupBlacklist: serializeBlacklistRules(rules) }));
+  };
 
   useEffect(() => {
     if (!token) {
@@ -1604,17 +1654,73 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">
-                    🚫 充值黑名单 UUID — 在名单中的客户端点击「购买流量」时会弹窗提示联系管理员，无法自助充值（适用于 3X 面板手动设置动态流量的特殊用户）
+                    🚫 充值黑名单 UUID — 可分别控制「在线续费」和「购买流量」
                   </label>
-                  <textarea
-                    rows={4}
-                    value={config.topupBlacklist ?? ""}
-                    onChange={e => setConfig({ ...config, topupBlacklist: e.target.value })}
-                    placeholder={"每行一个 UUID，或用逗号 / 空格分隔\n例如：\nxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\nyyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"}
-                    className="w-full border border-input p-2 rounded text-xs font-mono bg-background focus:ring-2 focus:ring-client-primary outline-none"
-                  />
+                  <div className="space-y-2 rounded-lg border border-border bg-background/40 p-3">
+                    {blacklistRules.length === 0 ? (
+                      <div className="text-xs text-muted-foreground py-2">暂无黑名单 UUID</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {blacklistRules.map((rule, index) => (
+                          <div key={`${rule.uuid}-${index}`} className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
+                            <input
+                              type="text"
+                              value={rule.uuid}
+                              onChange={(e) => {
+                                const next = [...blacklistRules];
+                                next[index] = { ...rule, uuid: e.target.value };
+                                updateBlacklistRules(next);
+                              }}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                              className="w-full border border-input p-2 rounded text-xs font-mono bg-background focus:ring-2 focus:ring-client-primary outline-none"
+                            />
+                            <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={rule.blockRenew}
+                                onChange={(e) => {
+                                  const next = [...blacklistRules];
+                                  next[index] = { ...rule, blockRenew: e.target.checked };
+                                  updateBlacklistRules(next);
+                                }}
+                              />
+                              禁止续费
+                            </label>
+                            <label className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={rule.blockTopup}
+                                onChange={(e) => {
+                                  const next = [...blacklistRules];
+                                  next[index] = { ...rule, blockTopup: e.target.checked };
+                                  updateBlacklistRules(next);
+                                }}
+                              />
+                              禁止购买流量
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => updateBlacklistRules(blacklistRules.filter((_, i) => i !== index))}
+                              className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded border border-destructive/30 text-destructive hover:bg-destructive/10 text-xs"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              删除
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => updateBlacklistRules([...blacklistRules, { uuid: "", blockRenew: true, blockTopup: true }])}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded bg-client-primary text-client-primary-foreground text-xs font-bold hover:opacity-90"
+                    >
+                      <Plus className="w-3 h-3" />
+                      添加 UUID
+                    </button>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    当前黑名单：<span className="font-bold text-foreground">{(config.topupBlacklist || "").split(/[\s,;]+/).filter(Boolean).length}</span> 个 UUID
+                    当前黑名单：<span className="font-bold text-foreground">{blacklistRules.length}</span> 个 UUID；旧文本格式会自动按“禁止续费 + 禁止购买流量”兼容。
                   </p>
                 </div>
               </div>

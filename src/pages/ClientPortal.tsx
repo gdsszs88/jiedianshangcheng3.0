@@ -56,6 +56,32 @@ function normalizeTrafficGB(value: any): number {
   return Math.round(n * 100) / 100;
 }
 
+function getBlacklistRule(raw: string | null | undefined, uuid: string) {
+  if (!uuid || uuid === "游客_未登录") return { blockRenew: false, blockTopup: false };
+  const normalizedUuid = uuid.trim().toLowerCase();
+  const text = String(raw || "").trim();
+  if (!text) return { blockRenew: false, blockTopup: false };
+  try {
+    const parsed = JSON.parse(text);
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
+    const found = items.find((item: any) => String(item?.uuid || "").trim().toLowerCase() === normalizedUuid);
+    if (found) {
+      return {
+        blockRenew: found.blockRenew !== false,
+        blockTopup: found.blockTopup !== false,
+      };
+    }
+    return { blockRenew: false, blockTopup: false };
+  } catch {}
+
+  const legacyBlocked = text
+    .split(/[\s,;]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(normalizedUuid);
+  return { blockRenew: legacyBlocked, blockTopup: legacyBlocked };
+}
+
 interface PublicConfig {
   price_month: number;
   price_quarter: number;
@@ -257,18 +283,12 @@ export default function ClientPortal() {
   const [topupBlockedOpen, setTopupBlockedOpen] = useState(false);
   const [topupBlockedReason, setTopupBlockedReason] = useState<"blacklist" | "expired">("blacklist");
   const [connectionQrOpen, setConnectionQrOpen] = useState(false);
-  const topupBlacklistSet = useMemo(
-    () =>
-      new Set(
-        String(config?.topup_blacklist || "")
-          .split(/[\s,;]+/)
-          .map((s: string) => s.trim().toLowerCase())
-          .filter(Boolean)
-      ),
-    [config?.topup_blacklist]
+  const blacklistRule = useMemo(
+    () => getBlacklistRule(config?.topup_blacklist, uuid),
+    [config?.topup_blacklist, uuid]
   );
-  const isSelfServiceBlocked =
-    !!uuid && uuid !== "游客_未登录" && topupBlacklistSet.has(uuid.trim().toLowerCase());
+  const isRenewBlocked = blacklistRule.blockRenew;
+  const isTopupBlockedByBlacklist = blacklistRule.blockTopup;
 
   const openTopupBlocked = (reason: "blacklist" | "expired") => {
     setTopupBlockedReason(reason);
@@ -782,7 +802,11 @@ export default function ClientPortal() {
   useEffect(() => () => cleanupPolling(), []);
 
   const initiateCheckout = (months: number, price: number, planName: string, type = "renew", regionId?: string | null, durationDays?: number, planId?: string | null) => {
-    if ((type === "renew" || type === "topup_traffic") && isSelfServiceBlocked) {
+    if (type === "renew" && isRenewBlocked) {
+      openTopupBlocked("blacklist");
+      return;
+    }
+    if (type === "topup_traffic" && isTopupBlockedByBlacklist) {
       openTopupBlocked("blacklist");
       return;
     }
@@ -1383,15 +1407,15 @@ export default function ClientPortal() {
           </button>
           <button
             onClick={() => {
-              if (isSelfServiceBlocked) {
+              if (isRenewBlocked) {
                 openTopupBlocked("blacklist");
                 return;
               }
               setTab("renew");
               setPayStatus(null);
             }}
-            aria-disabled={isSelfServiceBlocked}
-            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all font-bold ${isSelfServiceBlocked ? "bg-muted text-muted-foreground border border-border opacity-60 cursor-not-allowed" : tab === "renew" ? "bg-client-primary text-client-primary-foreground shadow-md" : "bg-card text-muted-foreground hover:bg-secondary border border-border"}`}
+            aria-disabled={isRenewBlocked}
+            className={`w-full flex items-center px-4 py-3 rounded-xl transition-all font-bold ${isRenewBlocked ? "bg-muted text-muted-foreground border border-border opacity-60 cursor-not-allowed" : tab === "renew" ? "bg-client-primary text-client-primary-foreground shadow-md" : "bg-card text-muted-foreground hover:bg-secondary border border-border"}`}
           >
             <CreditCard className="w-5 h-5 mr-3" /> 在线续费
           </button>
@@ -1570,7 +1594,7 @@ export default function ClientPortal() {
                 const gbNum = Number(topupGbInput);
                 const gbValid = Number.isFinite(gbNum) && Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
                 const computedAmount = gbValid ? Number((unitPrice * (gbNum / minGb)).toFixed(2)) : 0;
-                const isBlacklisted = isSelfServiceBlocked;
+                const isBlacklisted = isTopupBlockedByBlacklist;
                 const isExpired = clientData.expiryDate > 0 && clientData.expiryDate <= nowTick;
                 const isTopupBlocked = isBlacklisted || isExpired;
                 return (
@@ -1673,7 +1697,7 @@ export default function ClientPortal() {
                     请先退出并在首页输入凭证登录后，方可进行续费操作。如果您没有节点，请点击「购买开通」。
                   </p>
                 </div>
-              ) : isSelfServiceBlocked ? (
+              ) : isRenewBlocked ? (
                 <div className="bg-amber-500/10 border border-amber-500/30 p-8 rounded-2xl text-center">
                   <h3 className="text-xl font-bold mb-2 text-amber-700 dark:text-amber-300">无法自助续费</h3>
                   <p className="text-muted-foreground">
