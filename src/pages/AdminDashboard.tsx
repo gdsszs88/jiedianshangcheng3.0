@@ -129,13 +129,11 @@ function parseBlacklistRules(raw: string | null | undefined): BlacklistRule[] {
     const parsed = JSON.parse(text);
     const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
     if (items.length > 0) {
-      return items
-        .map((item: any) => ({
-          uuid: String(item?.uuid || "").trim(),
-          blockRenew: item?.blockRenew !== false,
-          blockTopup: item?.blockTopup !== false,
-        }))
-        .filter((item) => item.uuid);
+      return items.map((item: any) => ({
+        uuid: String(item?.uuid || "").trim(),
+        blockRenew: item?.blockRenew !== false,
+        blockTopup: item?.blockTopup !== false,
+      }));
     }
   } catch {}
   return text
@@ -145,7 +143,7 @@ function parseBlacklistRules(raw: string | null | undefined): BlacklistRule[] {
     .map((uuid) => ({ uuid, blockRenew: true, blockTopup: true }));
 }
 
-function serializeBlacklistRules(rules: BlacklistRule[]): string {
+function serializeBlacklistRules(rules: BlacklistRule[], keepEmpty = true): string {
   const seen = new Set<string>();
   const items = rules
     .map((rule) => ({
@@ -155,7 +153,8 @@ function serializeBlacklistRules(rules: BlacklistRule[]): string {
     }))
     .filter((rule) => {
       const key = rule.uuid.toLowerCase();
-      if (!rule.uuid || seen.has(key)) return false;
+      if (!rule.uuid) return keepEmpty;
+      if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
@@ -534,7 +533,12 @@ export default function AdminDashboard() {
   const handleSave = async (btnKey: string) => {
     setBtnLoading(btnKey, "保存中...");
     try {
-      await saveAdminConfig(token, config);
+      const configToSave = {
+        ...config,
+        topupBlacklist: serializeBlacklistRules(parseBlacklistRules(config.topupBlacklist), false),
+      };
+      await saveAdminConfig(token, configToSave);
+      setConfig(configToSave);
       setBtnLoading(btnKey, "✅ 已保存");
     } catch {
       setBtnLoading(btnKey, "❌ 失败");
