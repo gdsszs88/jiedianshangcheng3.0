@@ -2902,7 +2902,7 @@ export default function ClientPortal() {
                       {expandedTutorialId === t.id && (
                         <div className="px-5 pb-5 border-t border-border">
                           <div
-                            className="prose prose-sm max-w-none text-foreground mt-3"
+                            className="prose prose-sm max-w-none text-foreground mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [&_*]:break-words [&_*]:[overflow-wrap:anywhere]"
                             dangerouslySetInnerHTML={{ __html: fixMobileVideo(t.content) }}
                           />
                         </div>
