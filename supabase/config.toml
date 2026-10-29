@@ -2,3 +2,6 @@ project_id = "ltvyvkdntvgicumfzgjy"
 
 [functions.traffic-stream]
 verify_jwt = false
+
+[functions.subscription]
+verify_jwt = false

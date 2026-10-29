@@ -246,6 +246,12 @@ export default function ClientPortal() {
     trafficUsed: 0,
     trafficTotal: 100,
   });
+
+  const buildSubscriptionUrl = (identifier?: string | null) => {
+    const token = (identifier || "").trim();
+    if (!token || token === "游客_未登录") return "";
+    return `${window.location.origin}/supabase/functions/v1/subscription?token=${encodeURIComponent(token)}`;
+  };
   const [dynamicPlans, setDynamicPlans] = useState<PlanItem[]>([]);
   const [dynamicRegions, setDynamicRegions] = useState<RegionItem[]>([]);
   const [selectedBuyRegion, setSelectedBuyRegion] = useState<string | null>(null);
@@ -1524,6 +1530,26 @@ export default function ClientPortal() {
                     )}
                   </div>
                 )}
+                {buildSubscriptionUrl(uuid) && (
+                  <div className="pl-7 pt-1">
+                    <div className="flex items-center flex-wrap gap-2">
+                      <span className="font-medium text-sm">订阅链接：</span>
+                      <button
+                        type="button"
+                        onClick={() => copyWithFeedback(buildSubscriptionUrl(uuid), "subscription_url")}
+                        className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-bold transition-colors"
+                        title="支持 v2rayN、Clash Meta/Mihomo 等客户端"
+                      >
+                        {copiedKey === "subscription_url" ? (
+                          <><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /><span className="text-green-500">已复制订阅链接</span></>
+                        ) : (
+                          <><Copy className="w-3.5 h-3.5" /><span>复制通用订阅链接</span></>
+                        )}
+                      </button>
+                      <span className="text-xs opacity-75">节点域名变化后，在客户端更新订阅即可</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-client-primary/5 p-6 rounded-2xl border border-client-primary/20">
@@ -2068,6 +2094,20 @@ export default function ClientPortal() {
 
                         {fullLink && (
                           <>
+                            {buildSubscriptionUrl(newClientCredentials.uuid) && (
+                              <div className="mb-4 mt-4 pt-4 border-t border-border">
+                                <label className="block text-xs text-muted-foreground mb-2 font-bold">🔄 通用订阅链接（推荐）</label>
+                                <div className="flex items-start gap-2">
+                                  <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{buildSubscriptionUrl(newClientCredentials.uuid)}</code>
+                                  <button onClick={() => copyWithFeedback(buildSubscriptionUrl(newClientCredentials.uuid), "new_subscription_url")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
+                                    {copiedKey === "new_subscription_url" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
+                                  </button>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                                  支持 v2rayN、Clash Meta/Mihomo 等客户端。以后节点域名或参数发生变化，只需在客户端更新订阅，无需重新复制节点。
+                                </p>
+                              </div>
+                            )}
                             <div className="mb-4 mt-4 pt-4 border-t border-border">
                               <label className="block text-xs text-muted-foreground mb-1 font-bold">📋 完整节点链接</label>
                               <div className="flex items-start gap-2">
