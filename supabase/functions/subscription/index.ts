@@ -118,6 +118,19 @@ function yamlString(value: unknown): string {
   return JSON.stringify(String(value ?? ""));
 }
 
+function formatTrafficGB(bytes: number): string {
+  return (Math.max(0, Number(bytes || 0)) / 1073741824).toFixed(2);
+}
+
+function buildTrafficDisplayLink(token: string, upload: number, download: number, total: number): string {
+  const used = Math.max(0, upload + download);
+  const remaining = Math.max(0, total - used);
+  const name = `📊 当前流量 ${formatTrafficGB(used)}/${formatTrafficGB(total)}GB｜剩余 ${formatTrafficGB(remaining)}GB｜更新订阅刷新`;
+  // An intentionally non-routable local endpoint. It is shown in v2rayN only as
+  // a live status row and cannot accidentally consume a real server connection.
+  return `vless://${token}@127.0.0.1:1?encryption=none&type=tcp&security=none#${encodeURIComponent(name)}`;
+}
+
 function buildClashYaml(protocol: string, token: string, address: string, inbound: any, client: any, name: string): string {
   let stream: any = {};
   try { stream = JSON.parse(inbound.streamSettings || "{}"); } catch {}
@@ -228,7 +241,49 @@ Deno.serve(async (req) => {
         };
       }
     }
-    if (!record || record.is_socks5) {
+
+    // Support clients created directly in 3x-ui. They may not have an order or
+    // client_records row yet, so locate the UUID across enabled panels and build
+    // an ephemeral subscription record from the live panel data.
+    if (!record) {
+      const { data: enabledPanels } = await supabase
+        .from("panels")
+        .select("panel_url,panel_user,panel_pass,enabled")
+        .eq("enabled", true);
+      for (const candidatePanel of enabledPanels || []) {
+        try {
+          const candidateCookie = await loginPanel(candidatePanel.panel_url, candidatePanel.panel_user, candidatePanel.panel_pass);
+          if (!candidateCookie) continue;
+          const listRes = await fetchPanel(`${candidatePanel.panel_url.replace(/\/+$/, "")}/panel/api/inbounds/list`, {
+            headers: { Cookie: candidateCookie, Accept: "application/json" },
+          });
+          const listBody = await safeJson(listRes);
+          for (const candidateInbound of Array.isArray(listBody?.obj) ? listBody.obj : []) {
+            let candidateSettings: any = {};
+            try { candidateSettings = JSON.parse(candidateInbound.settings || "{}"); } catch {}
+            const candidateClient = (candidateSettings.clients || []).find((item: any) => item.id === token || item.password === token);
+            if (!candidateClient) continue;
+            record = {
+              uuid: token,
+              inbound_id: candidateInbound.id,
+              client_email: candidateClient.email || "",
+              plan_title: "",
+              plan_id: null,
+              panel_url: candidatePanel.panel_url,
+              is_socks5: false,
+            };
+            break;
+          }
+          if (record) break;
+        } catch (manualLookupError) {
+          console.error("manual 3x client lookup failed", manualLookupError);
+        }
+      }
+    }
+    if (!record) {
+      return new Response("", { status: 200, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
+    }
+    if (record.is_socks5) {
       return new Response("未找到可订阅的节点", { status: 404, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
@@ -309,7 +364,11 @@ Deno.serve(async (req) => {
     let settings: any = {};
     try { settings = JSON.parse(inbound.settings || "{}"); } catch {}
     const client = (settings.clients || []).find((item: any) => item.id === token || item.password === token);
-    if (!client) return new Response("节点已不存在或凭证已失效", { status: 404, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
+    if (!client) {
+      // Return an empty successful subscription so clients remove both the real
+      // node and the traffic-display node after the user is deleted in 3x-ui.
+      return new Response("", { status: 200, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
+    }
 
     const address = nodeAddress(panel.panel_url);
     // The 3x-ui client "email" field is the editable client name/remark. Always
@@ -379,7 +438,10 @@ Deno.serve(async (req) => {
       return new Response(yaml, { headers: { ...commonHeaders, "Content-Type": "text/yaml; charset=utf-8" } });
     }
     const link = buildShareLink(protocol, token, address, inbound, client, name);
-    const encoded = btoa(unescape(encodeURIComponent(`${link}\n`)));
+    const wantsV2rayN = /v2rayn/i.test(userAgent);
+    const trafficLink = wantsV2rayN ? buildTrafficDisplayLink(token, upload, download, Math.max(0, total)) : "";
+    const links = trafficLink ? `${trafficLink}\n${link}\n` : `${link}\n`;
+    const encoded = btoa(unescape(encodeURIComponent(links)));
     return new Response(encoded, { headers: { ...commonHeaders, "Content-Type": "text/plain; charset=utf-8" } });
   } catch (error) {
     console.error("subscription error", error);
