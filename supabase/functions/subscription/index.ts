@@ -125,7 +125,7 @@ function formatTrafficGB(bytes: number): string {
 function buildTrafficDisplayLink(token: string, upload: number, download: number, total: number): string {
   const used = Math.max(0, upload + download);
   const remaining = Math.max(0, total - used);
-  const name = `📊 当前流量 ${formatTrafficGB(used)}/${formatTrafficGB(total)}GB｜剩余 ${formatTrafficGB(remaining)}GB｜更新订阅刷新`;
+  const name = `${formatTrafficGB(used)}/${formatTrafficGB(total)}GB｜剩余 ${formatTrafficGB(remaining)}GB｜更新订阅刷新当前流量📊`;
   // An intentionally non-routable local endpoint. It is shown in v2rayN only as
   // a live status row and cannot accidentally consume a real server connection.
   return `vless://${token}@127.0.0.1:1?encryption=none&type=tcp&security=none#${encodeURIComponent(name)}`;
