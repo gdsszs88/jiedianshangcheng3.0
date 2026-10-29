@@ -326,9 +326,47 @@ Deno.serve(async (req) => {
     // panel name and the original saved name so traffic remains discoverable.
     const clientKeys = [token, client.id, client.password, client.email, record.client_email]
       .filter((value): value is string => typeof value === "string" && value.length > 0);
-    const clientStats = (Array.isArray(inbound.clientStats) ? inbound.clientStats : []).find((item: any) =>
+    const findClientStats = (items: any[]) => items.find((item: any) =>
       typeof item?.email === "string" && clientKeys.includes(item.email)
     );
+    let clientStats = findClientStats(Array.isArray(inbound.clientStats) ? inbound.clientStats : []);
+
+    // Some 3x-ui versions omit clientStats from the single-inbound endpoint.
+    // Fall back to the list endpoint, which includes the live traffic counters.
+    if (!clientStats) {
+      try {
+        const listRes = await fetchPanel(`${panel.panel_url.replace(/\/+$/, "")}/panel/api/inbounds/list`, {
+          headers: { Cookie: cookie, Accept: "application/json" },
+        });
+        const listBody = await safeJson(listRes);
+        const listedInbound = Array.isArray(listBody?.obj)
+          ? listBody.obj.find((item: any) => Number(item?.id) === Number(record.inbound_id))
+          : null;
+        clientStats = findClientStats(Array.isArray(listedInbound?.clientStats) ? listedInbound.clientStats : []);
+      } catch (listError) {
+        console.error("failed to load inbound traffic list", listError);
+      }
+    }
+
+    // Last fallback: ask 3x-ui for the client's traffic by each known old/new
+    // name. This handles panels that do not embed clientStats in either response.
+    if (!clientStats) {
+      for (const key of clientKeys.filter((value) => value !== token)) {
+        try {
+          const trafficRes = await fetchPanel(
+            `${panel.panel_url.replace(/\/+$/, "")}/panel/api/inbounds/getClientTraffics/${encodeURIComponent(key)}`,
+            { headers: { Cookie: cookie, Accept: "application/json" } },
+          );
+          const trafficBody = await safeJson(trafficRes);
+          if (trafficBody?.success && trafficBody?.obj) {
+            clientStats = trafficBody.obj;
+            break;
+          }
+        } catch (trafficError) {
+          console.error("failed to load client traffic", trafficError);
+        }
+      }
+    }
     const upload = Math.max(0, Number(clientStats?.up || 0));
     const download = Math.max(0, Number(clientStats?.down || 0));
     const expiry = Number(client.expiryTime || clientStats?.expiryTime || 0);
