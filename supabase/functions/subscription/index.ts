@@ -181,13 +181,37 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const url = new URL(req.url);
-    const token = (url.searchParams.get("token") || "").trim();
+    const pathToken = url.pathname.match(/\/(?:subscription|s)\/([0-9a-f-]{20,})\/?$/i)?.[1] || "";
+    const token = (url.searchParams.get("token") || pathToken).trim();
     if (!/^[0-9a-f-]{20,}$/i.test(token)) {
       return new Response("订阅令牌无效", { status: 400, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: record } = await supabase.from("client_records").select("*").eq("uuid", token).maybeSingle();
+    const { data: records } = await supabase.from("client_records").select("*").eq("uuid", token).limit(1);
+    let record: any = records?.[0] || null;
+    if (!record) {
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("uuid,inbound_id,client_remark,plan_name,status")
+        .eq("uuid", token)
+        .eq("status", "fulfilled")
+        .not("inbound_id", "is", null)
+        .order("fulfilled_at", { ascending: false })
+        .limit(1);
+      const order = orders?.[0];
+      if (order) {
+        record = {
+          uuid: order.uuid,
+          inbound_id: order.inbound_id,
+          client_email: order.client_remark || "",
+          plan_title: order.plan_name || "",
+          plan_id: null,
+          panel_url: "",
+          is_socks5: false,
+        };
+      }
+    }
     if (!record || record.is_socks5) {
       return new Response("未找到可订阅的节点", { status: 404, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
     }
@@ -217,6 +241,24 @@ Deno.serve(async (req) => {
             .limit(1);
           panels = result.data;
         }
+      }
+    }
+    if (!panels?.length) {
+      const { data: inboundRows } = await supabase
+        .from("region_inbounds")
+        .select("panel_id")
+        .eq("inbound_id", record.inbound_id)
+        .not("panel_id", "is", null)
+        .limit(1);
+      const panelId = inboundRows?.[0]?.panel_id;
+      if (panelId) {
+        const byInbound = await supabase
+          .from("panels")
+          .select("panel_url,panel_user,panel_pass,enabled")
+          .eq("id", panelId)
+          .eq("enabled", true)
+          .limit(1);
+        panels = byInbound.data;
       }
     }
     if (!panels?.length) {

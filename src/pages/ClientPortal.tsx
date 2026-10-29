@@ -250,7 +250,7 @@ export default function ClientPortal() {
   const buildSubscriptionUrl = (identifier?: string | null) => {
     const token = (identifier || "").trim();
     if (!token || token === "游客_未登录") return "";
-    return `${window.location.origin}/supabase/functions/v1/subscription?token=${encodeURIComponent(token)}`;
+    return `https://dy.ip520.top/s/${encodeURIComponent(token)}`;
   };
   const [dynamicPlans, setDynamicPlans] = useState<PlanItem[]>([]);
   const [dynamicRegions, setDynamicRegions] = useState<RegionItem[]>([]);
