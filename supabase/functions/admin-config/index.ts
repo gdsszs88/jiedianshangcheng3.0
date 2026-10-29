@@ -108,6 +108,16 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      const { data: existingConfig } = await supabase
+        .from("admin_config")
+        .select("subscription_domain,subscription_domain_history")
+        .eq("id", configId)
+        .maybeSingle();
+      const subscriptionDomainHistory = Array.from(new Set([
+        ...((existingConfig?.subscription_domain_history || []) as string[]),
+        String(existingConfig?.subscription_domain || "").trim().toLowerCase(),
+        subscriptionDomain,
+      ].filter(Boolean)));
       const updateData = {
         panel_url: config.panelUrl,
         panel_user: config.panelUser,
@@ -145,6 +155,7 @@ Deno.serve(async (req) => {
         topup_price: Math.max(0, Number(config.topupPrice) || 0),
         topup_blacklist: typeof config.topupBlacklist === "string" ? config.topupBlacklist : "",
         subscription_domain: subscriptionDomain,
+        subscription_domain_history: subscriptionDomainHistory,
       };
 
       const { error } = await supabase

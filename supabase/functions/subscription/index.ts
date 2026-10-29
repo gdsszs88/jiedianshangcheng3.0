@@ -184,10 +184,15 @@ Deno.serve(async (req) => {
     if (url.pathname.endsWith("/domain-authorized")) {
       const requestedDomain = (url.searchParams.get("domain") || "").trim().toLowerCase().replace(/:\d+$/, "");
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data } = await supabase.from("admin_config").select("subscription_domain").limit(1).maybeSingle();
+      const { data } = await supabase.from("admin_config").select("subscription_domain,subscription_domain_history").limit(1).maybeSingle();
       const configuredDomain = String(data?.subscription_domain || "dy.ip520.top").trim().toLowerCase();
-      return new Response(requestedDomain && requestedDomain === configuredDomain ? "allowed" : "forbidden", {
-        status: requestedDomain && requestedDomain === configuredDomain ? 200 : 403,
+      const allowedDomains = new Set([
+        configuredDomain,
+        ...((data?.subscription_domain_history || []) as string[]).map((item) => String(item).trim().toLowerCase()),
+      ]);
+      const allowed = Boolean(requestedDomain && allowedDomains.has(requestedDomain));
+      return new Response(allowed ? "allowed" : "forbidden", {
+        status: allowed ? 200 : 403,
         headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" },
       });
     }

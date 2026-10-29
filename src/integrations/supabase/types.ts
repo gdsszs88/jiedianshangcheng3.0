@@ -49,6 +49,7 @@ export type Database = {
           sales_inbound_id: number
           sales_protocol: string
           subscription_domain: string
+          subscription_domain_history: string[]
           tawk_id: string
           telegram_link: string
           topup_blacklist: string
@@ -91,6 +92,7 @@ export type Database = {
           sales_inbound_id?: number
           sales_protocol?: string
           subscription_domain?: string
+          subscription_domain_history?: string[]
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string
@@ -133,6 +135,7 @@ export type Database = {
           sales_inbound_id?: number
           sales_protocol?: string
           subscription_domain?: string
+          subscription_domain_history?: string[]
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string

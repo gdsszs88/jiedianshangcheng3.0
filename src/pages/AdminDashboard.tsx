@@ -1135,7 +1135,7 @@ export default function AdminDashboard() {
                     className="w-full border border-input p-2.5 rounded-lg focus:ring-2 focus:ring-admin-primary outline-none bg-background"
                   />
                   <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    只填写域名，不要填写 https:// 或路径。更换前请先在 Cloudflare 将新域名解析到当前 VPS；保存后，新生成的用户订阅链接会立即使用该域名，Caddy 会自动放行并配置订阅路由。
+                    只填写域名，不要填写 https:// 或路径。更换前请先在 Cloudflare 将新域名解析到当前 VPS；保存后，新生成的用户订阅链接会立即使用该域名，Caddy 会自动放行并配置订阅路由。旧域名会保留兼容，请不要删除旧域名的 DNS，否则使用旧订阅地址的用户将无法更新。
                   </p>
                   <p className="text-xs text-admin-primary mt-1 font-mono break-all">
                     预览：https://{config.subscriptionDomain.replace(/^https?:\/\//, "").replace(/[\/?#].*$/, "") || "dy.ip520.top"}/s/用户UUID
