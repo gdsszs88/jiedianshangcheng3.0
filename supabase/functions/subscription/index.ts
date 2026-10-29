@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Expose-Headers": "Subscription-Userinfo, Profile-Update-Interval",
 };
 
 const textHeaders = {
@@ -320,9 +321,16 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get("user-agent") || "";
     const target = (url.searchParams.get("target") || "").toLowerCase();
     const wantsClash = target === "clash" || /clash|mihomo|stash/i.test(userAgent);
-    const expiry = Number(client.expiryTime || 0);
-    const total = Number(client.totalGB || 0);
-    const subscriptionInfo = `upload=0; download=0; total=${Math.max(0, total)}; expire=${expiry > 0 ? Math.floor(expiry / 1000) : 0}`;
+    const clientKeys = [token, client.id, client.password, client.email]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    const clientStats = (Array.isArray(inbound.clientStats) ? inbound.clientStats : []).find((item: any) =>
+      typeof item?.email === "string" && clientKeys.includes(item.email)
+    );
+    const upload = Math.max(0, Number(clientStats?.up || 0));
+    const download = Math.max(0, Number(clientStats?.down || 0));
+    const expiry = Number(client.expiryTime || clientStats?.expiryTime || 0);
+    const total = Number(client.totalGB || clientStats?.total || 0);
+    const subscriptionInfo = `upload=${upload}; download=${download}; total=${Math.max(0, total)}; expire=${expiry > 0 ? Math.floor(expiry / 1000) : 0}`;
     const commonHeaders = { ...textHeaders, "Subscription-Userinfo": subscriptionInfo };
 
     if (wantsClash) {
