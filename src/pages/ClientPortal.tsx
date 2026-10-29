@@ -313,32 +313,6 @@ export default function ClientPortal() {
     setTimeout(() => setCopiedKey(null), 1500);
   };
 
-  // 基于用户登录时输入的原始链接，将备注/ps 替换为最新的 clientData.email，
-  // 这样续费导致备注日期变化时，用户能复制到“最新”的链接（保留我们对原链接的所有自定义参数）。
-  const buildLatestLink = (): string | null => {
-    const original = (loginInput || "").trim();
-    const newRemark = (clientData?.email || "").trim();
-    if (!original || !newRemark) return null;
-    const lines = original.split(/\n/).map((l) => l.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (line.startsWith("vless://") || line.startsWith("trojan://")) {
-        const hashIdx = line.indexOf("#");
-        const base = hashIdx >= 0 ? line.substring(0, hashIdx) : line;
-        return `${base}#${encodeURIComponent(newRemark)}`;
-      }
-      if (line.startsWith("vmess://")) {
-        try {
-          const decoded = atob(line.substring(8));
-          const json = JSON.parse(decoded);
-          json.ps = newRemark;
-          return "vmess://" + btoa(JSON.stringify(json));
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
-  };
   const [lookupError, setLookupError] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -650,7 +624,6 @@ export default function ClientPortal() {
     const trimmed = input.trim();
     if (!trimmed) return null;
     const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-    // Try each line (user may paste multi-line content)
     const lines = trimmed
       .split(/\n/)
       .map((l) => l.trim())
@@ -658,19 +631,14 @@ export default function ClientPortal() {
     for (const line of lines) {
       if (uuidRegex.test(line)) return line;
       try {
-        if (line.startsWith("vless://") || line.startsWith("trojan://")) {
-          const extracted = line.split("://")[1].split("@")[0];
-          if (extracted && extracted.length > 0) return extracted;
-        } else if (line.startsWith("vmess://")) {
-          const decoded = atob(line.substring(8));
-          const json = JSON.parse(decoded);
-          if (json?.id && uuidRegex.test(json.id)) return json.id;
-        }
+        const parsed = new URL(line);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") continue;
+        const pathMatch = parsed.pathname.match(/\/s\/([0-9a-fA-F-]{36})\/?$/);
+        const queryToken = parsed.searchParams.get("token") || "";
+        if (pathMatch?.[1] && uuidRegex.test(pathMatch[1])) return pathMatch[1];
+        if (uuidRegex.test(queryToken)) return queryToken;
       } catch {}
     }
-    // For SOCKS5: use the first non-empty line as identifier
-    const firstLine = lines[0];
-    if (firstLine && firstLine.length <= 256) return firstLine;
     return null;
   };
 
@@ -721,7 +689,7 @@ export default function ClientPortal() {
     e.preventDefault();
     const extracted = extractIdentifier(loginInput);
     if (!extracted) {
-      setError("请输入 UUID、链接或 SOCKS5 用户名/密码。");
+      setError("只支持使用订阅链接或 UUID 登录，不能使用 VLESS/VMess/Trojan 节点链接登录。");
       return;
     }
     setUuid(extracted);
@@ -743,7 +711,7 @@ export default function ClientPortal() {
         try {
           localStorage.setItem("portal_uuid", extracted);
           const raw = (loginInput || "").trim();
-          if (/^(vless|trojan|vmess):\/\//.test(raw)) {
+          if (/^https?:\/\//i.test(raw)) {
             localStorage.setItem("portal_login_input", raw);
           }
         } catch {}
@@ -1301,7 +1269,7 @@ export default function ClientPortal() {
             <div className="bg-client-primary p-8 text-center">
               <User className="w-16 h-16 text-client-primary-foreground mx-auto mb-4" />
               <h1 className="text-2xl font-bold text-client-primary-foreground mb-2">充值续费自助服务中心</h1>
-              <p className="text-client-primary-foreground/80 text-sm">支持直接粘贴链接 或 扫码识别</p>
+              <p className="text-client-primary-foreground/80 text-sm">支持订阅链接、UUID 或订阅二维码识别</p>
             </div>
             <div className="p-8">
               <form onSubmit={handleLogin}>
@@ -1311,7 +1279,7 @@ export default function ClientPortal() {
                     onChange={(e) => setLoginInput(e.target.value)}
                     onPaste={handlePaste}
                     placeholder={
-                      "例如: 550e8400-e29b-41d4...\n或者粘贴完整的 vmess:// / vless:// 链接\n支持 SOCKS5 用户名或密码\n🌟 支持直接在此处 Ctrl+V 粘贴二维码截图"
+                      "例如: 550e8400-e29b-41d4...\n或者粘贴完整订阅链接：https://dy.ip520.top/s/UUID\n🌟 支持直接在此处 Ctrl+V 粘贴订阅二维码截图"
                     }
                     className="w-full px-4 py-3 rounded-lg border border-input focus:ring-2 focus:ring-client-primary focus:border-transparent outline-none min-h-[120px] resize-none pb-12 bg-background text-foreground"
                     required
@@ -1500,40 +1468,6 @@ export default function ClientPortal() {
                     <span className="text-sm font-mono bg-background px-2 py-1 rounded border border-border">
                       {clientData.email}
                     </span>
-                    {buildLatestLink() && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const link = buildLatestLink();
-                            if (link) copyWithFeedback(link, "latest_link");
-                          }}
-                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-medium transition-colors"
-                          title="复制最新链接（已替换为当前最新备注）"
-                        >
-                          {copiedKey === "latest_link" ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                              <span className="text-green-500">已复制最新链接</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>复制最新链接</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConnectionQrOpen(true)}
-                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-medium transition-colors"
-                          title="扫描二维码导入当前节点"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>扫描二维码导入</span>
-                        </button>
-                      </>
-                    )}
                   </div>
                 )}
                 {buildSubscriptionUrl(uuid) && (
@@ -1551,6 +1485,15 @@ export default function ClientPortal() {
                         ) : (
                           <><Copy className="w-3.5 h-3.5" /><span>复制通用订阅链接</span></>
                         )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConnectionQrOpen(true)}
+                        className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md border border-client-primary/30 bg-background hover:bg-client-primary/10 text-client-primary font-bold transition-colors"
+                        title="扫描订阅二维码导入客户端"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>订阅二维码</span>
                       </button>
                       <span className="text-xs opacity-75">节点域名变化后，在客户端更新订阅即可</span>
                     </div>
@@ -2124,9 +2067,9 @@ export default function ClientPortal() {
                               </div>
                             </div>
                             <div className="flex flex-col items-center mt-4 pt-4 border-t border-border">
-                              <label className="block text-xs text-muted-foreground mb-3 font-bold">📱 扫码导入</label>
+                              <label className="block text-xs text-muted-foreground mb-3 font-bold">📱 扫描订阅二维码导入</label>
                               <div className="bg-white p-3 rounded-xl shadow-sm">
-                                <QRCodeSVG value={fullLink} size={180} />
+                                <QRCodeSVG value={buildSubscriptionUrl(newClientCredentials.uuid)} size={180} />
                               </div>
                             </div>
                           </>
@@ -2972,13 +2915,13 @@ export default function ClientPortal() {
           )}
         </div>
       </div>
-      {connectionQrOpen && buildLatestLink() && (
+      {connectionQrOpen && buildSubscriptionUrl(uuid) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConnectionQrOpen(false)}>
           <div className="bg-card max-w-sm w-full p-6 rounded-2xl shadow-2xl border border-border text-center" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 text-left">
               <div>
-                <h3 className="text-lg font-bold text-foreground">扫描二维码导入节点</h3>
-                <p className="text-xs text-muted-foreground mt-1">使用 v2rayN、Shadowrocket、V2Box 等客户端扫码导入</p>
+                <h3 className="text-lg font-bold text-foreground">扫描订阅二维码</h3>
+                <p className="text-xs text-muted-foreground mt-1">二维码内容是订阅链接，支持在兼容客户端中添加订阅</p>
               </div>
               <button
                 type="button"
@@ -2990,16 +2933,16 @@ export default function ClientPortal() {
               </button>
             </div>
             <div className="inline-block bg-white p-4 rounded-xl border border-border shadow-sm">
-              <QRCodeSVG value={buildLatestLink() || ""} size={220} level="H" includeMargin />
+              <QRCodeSVG value={buildSubscriptionUrl(uuid)} size={220} level="H" includeMargin />
             </div>
             <div className="mt-4 text-xs text-muted-foreground break-all text-left bg-muted/60 border border-border rounded-lg p-3">
-              {buildLatestLink()}
+              {buildSubscriptionUrl(uuid)}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  const link = buildLatestLink();
+                  const link = buildSubscriptionUrl(uuid);
                   if (link) copyWithFeedback(link, "latest_qr_link");
                 }}
                 className="px-4 py-2 rounded-lg border border-border hover:bg-muted text-sm font-bold inline-flex items-center gap-1"
