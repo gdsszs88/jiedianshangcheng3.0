@@ -311,7 +311,12 @@ Deno.serve(async (req) => {
     if (!client) return new Response("节点已不存在或凭证已失效", { status: 404, headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" } });
 
     const address = nodeAddress(panel.panel_url);
-    const name = record.client_email || record.plan_title || inbound.remark || "IP520";
+    // The 3x-ui client "email" field is the editable client name/remark. Always
+    // prefer its live value so changing a client name in the panel is reflected
+    // the next time the user refreshes the subscription. Database values are only
+    // fallbacks for legacy clients whose panel-side name is empty.
+    const liveClientName = String(client.email || client.user || client.username || "").trim();
+    const name = liveClientName || record.client_email || record.plan_title || inbound.remark || "IP520";
     const userAgent = req.headers.get("user-agent") || "";
     const target = (url.searchParams.get("target") || "").toLowerCase();
     const wantsClash = target === "clash" || /clash|mihomo|stash/i.test(userAgent);
