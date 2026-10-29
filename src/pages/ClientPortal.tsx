@@ -269,7 +269,6 @@ export default function ClientPortal() {
   const [checkoutData, setCheckoutData] = useState<{ months: number; durationDays: number; price: number; planName: string; type: string; regionId?: string | null; planId?: string | null } | null>(null);
   const [newClientCredentials, setNewClientCredentials] = useState<Record<string, string> | null>(null);
   const [newClientConnectionInfo, setNewClientConnectionInfo] = useState<Record<string, any> | null>(null);
-  const [newClientRemark, setNewClientRemark] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("");
   const [cryptoPrice, setCryptoPrice] = useState(0);
   const [exchangeRates, setExchangeRates] = useState<{ usdtCny: number; trxCny: number } | null>(null);
@@ -940,7 +939,6 @@ export default function ClientPortal() {
                 refreshStockData();
                 setNewClientCredentials(createRes.credentials || null);
                 setNewClientConnectionInfo(createRes.connectionInfo || null);
-                setNewClientRemark(createRes.remark || "");
                 // Auto-login with the newly created client identifier so "我的状态" works immediately
                 const newId = createRes.credentials?.uuid || createRes.credentials?.username || createRes.credentials?.password;
                 if (newId) {
@@ -1864,116 +1862,14 @@ export default function ClientPortal() {
 
               {payStatus === "buy_success" && newClientCredentials ? (
                 (() => {
-                  // Build full protocol link if possible
-                  const proto = newClientCredentials.protocol;
-                  const conn = newClientConnectionInfo;
-                  let fullLink = "";
-                  if (proto === "vless" && newClientCredentials.uuid && conn) {
-                    const ss = conn.streamSettings || {};
-                    const network = ss.network || "tcp";
-                    const security = ss.security || "none";
-                    const params = new URLSearchParams();
-                    params.set("type", network);
-                    params.set("encryption", "none");
-                    if (security && security !== "none") {
-                      params.set("security", security);
-                      if (security === "reality" && ss.realitySettings) {
-                        const rs = ss.realitySettings;
-                        const rsSettings = rs.settings || {};
-                        const pbk = rsSettings.publicKey || rs.publicKey || "";
-                        const fp = rsSettings.fingerprint || rs.fingerprint || "";
-                        const sni = rsSettings.serverName || (rs.serverNames?.[0]) || "";
-                        const sid = (rs.shortIds?.[0]) || rs.shortId || "";
-                        const spx = rsSettings.spiderX || rs.spiderX || "";
-                        if (pbk) params.set("pbk", pbk);
-                        if (fp) params.set("fp", fp);
-                        if (sni) params.set("sni", sni);
-                        if (sid) params.set("sid", sid);
-                        if (spx) params.set("spx", spx);
-                      } else {
-                        const tlsSettings = ss.tlsSettings || {};
-                        if (tlsSettings.fingerprint) params.set("fp", tlsSettings.fingerprint);
-                        if (tlsSettings.alpn?.length) params.set("alpn", tlsSettings.alpn.join(","));
-                        if (tlsSettings.serverName) params.set("sni", tlsSettings.serverName);
-                      }
-                    }
-                    if (network === "ws" && ss.wsSettings) {
-                      if (ss.wsSettings.path) params.set("path", ss.wsSettings.path);
-                      if (ss.wsSettings.headers?.Host) params.set("host", ss.wsSettings.headers.Host);
-                    }
-                    if (network === "grpc" && ss.grpcSettings) {
-                      if (ss.grpcSettings.serviceName) params.set("serviceName", ss.grpcSettings.serviceName);
-                    }
-                    const inboundRemark = conn.remark ? `${conn.remark}-` : "";
-                    const fragment = inboundRemark + (newClientRemark || (conn.regionName ? `${conn.regionName}-${checkoutData?.planName || ""}` : (checkoutData?.planName || "node")));
-                    fullLink = `vless://${newClientCredentials.uuid}@${conn.address}:${conn.port}?${params.toString()}#${encodeURIComponent(fragment)}`;
-                  } else if (proto === "vmess" && newClientCredentials.uuid && conn) {
-                    const ss = conn.streamSettings || {};
-                    const vmessObj = {
-                      v: "2", ps: (conn.remark ? `${conn.remark}-` : "") + (newClientRemark || (conn.regionName ? `${conn.regionName}-${checkoutData?.planName || ""}` : (checkoutData?.planName || "node"))),
-                      add: conn.address, port: String(conn.port), id: newClientCredentials.uuid,
-                      aid: "0", scy: "auto", net: ss.network || "tcp", type: "none",
-                      host: "", path: "", tls: ss.security || "",
-                    };
-                    if (ss.network === "ws" && ss.wsSettings) {
-                      vmessObj.path = ss.wsSettings.path || "";
-                      vmessObj.host = ss.wsSettings.headers?.Host || "";
-                    }
-                    const vmessJson = JSON.stringify(vmessObj);
-                    const vmessB64 = btoa(unescape(encodeURIComponent(vmessJson)));
-                    fullLink = `vmess://${vmessB64}`;
-                  } else if (proto === "trojan" && newClientCredentials.uuid && conn) {
-                    const ss = conn.streamSettings || {};
-                    const params = new URLSearchParams();
-                    params.set("type", ss.network || "tcp");
-                    const security = ss.security || "none";
-                    if (security && security !== "none") {
-                      params.set("security", security);
-                      if (security === "reality" && ss.realitySettings) {
-                        const rs = ss.realitySettings;
-                        const rsSettings = rs.settings || {};
-                        const pbk = rsSettings.publicKey || rs.publicKey || "";
-                        const fp = rsSettings.fingerprint || rs.fingerprint || "";
-                        const sni = rsSettings.serverName || (rs.serverNames?.[0]) || "";
-                        const sid = (rs.shortIds?.[0]) || rs.shortId || "";
-                        const spx = rsSettings.spiderX || rs.spiderX || "";
-                        if (pbk) params.set("pbk", pbk);
-                        if (fp) params.set("fp", fp);
-                        if (sni) params.set("sni", sni);
-                        if (sid) params.set("sid", sid);
-                        if (spx) params.set("spx", spx);
-                      } else {
-                        const tlsSettings = ss.tlsSettings || {};
-                        if (tlsSettings.fingerprint) params.set("fp", tlsSettings.fingerprint);
-                        if (tlsSettings.alpn?.length) params.set("alpn", tlsSettings.alpn.join(","));
-                        if (tlsSettings.serverName) params.set("sni", tlsSettings.serverName);
-                      }
-                    }
-                    if (ss.network === "ws" && ss.wsSettings) {
-                      if (ss.wsSettings.path) params.set("path", ss.wsSettings.path);
-                      if (ss.wsSettings.headers?.Host) params.set("host", ss.wsSettings.headers.Host);
-                    }
-                    if (ss.network === "grpc" && ss.grpcSettings) {
-                      if (ss.grpcSettings.serviceName) params.set("serviceName", ss.grpcSettings.serviceName);
-                    }
-                    const inboundRemark2 = conn.remark ? `${conn.remark}-` : "";
-                    const fragment = inboundRemark2 + (newClientRemark || (conn.regionName ? `${conn.regionName}-${checkoutData?.planName || ""}` : (checkoutData?.planName || "node")));
-                    fullLink = `trojan://${newClientCredentials.uuid}@${conn.address}:${conn.port}?${params.toString()}#${encodeURIComponent(fragment)}`;
-                  }
-
                   return (
                     <div className="bg-client-primary/10 border border-client-primary/20 p-8 rounded-2xl text-center mb-6">
                       <CheckCircle2 className="w-16 h-16 text-client-primary mx-auto mb-4" />
                       <h3 className="text-2xl font-bold mb-2">开通成功！</h3>
-                      <p className="text-muted-foreground mb-6">系统已自动为您生成专属节点配置，请妥善保存以下信息：</p>
+                      <p className="text-muted-foreground mb-6">系统已自动为您生成专属订阅，请复制订阅链接或扫描二维码导入客户端：</p>
 
                       <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-sm text-left max-w-lg mx-auto relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-client-primary"></div>
-                        <div className="mb-4 flex items-center justify-between">
-                          <span className="text-sm font-bold text-muted-foreground">协议类型</span>
-                          <span className="bg-client-primary/10 text-client-primary text-xs px-2 py-1 rounded font-bold">{newClientCredentials.protocol?.toUpperCase()}</span>
-                        </div>
-
                         {newClientCredentials.username ? (
                           <>
                             {newClientConnectionInfo && (
@@ -2041,30 +1937,17 @@ export default function ClientPortal() {
                           </div>
                         )}
 
-                        {fullLink && (
+                        {newClientCredentials.uuid && buildSubscriptionUrl(newClientCredentials.uuid) && (
                           <>
-                            {buildSubscriptionUrl(newClientCredentials.uuid) && (
-                              <div className="mb-4 mt-4 pt-4 border-t border-border">
-                                <label className="block text-xs text-muted-foreground mb-2 font-bold">🔄 通用订阅链接（推荐）</label>
-                                <div className="flex items-start gap-2">
-                                  <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{buildSubscriptionUrl(newClientCredentials.uuid)}</code>
-                                  <button onClick={() => copyWithFeedback(buildSubscriptionUrl(newClientCredentials.uuid), "new_subscription_url")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
-                                    {copiedKey === "new_subscription_url" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
-                                  </button>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                                  支持 v2rayN、Clash Meta/Mihomo 等客户端。以后节点域名或参数发生变化，只需在客户端更新订阅，无需重新复制节点。
-                                </p>
-                              </div>
-                            )}
                             <div className="mb-4 mt-4 pt-4 border-t border-border">
-                              <label className="block text-xs text-muted-foreground mb-1 font-bold">📋 完整节点链接</label>
+                              <label className="block text-xs text-muted-foreground mb-2 font-bold">🔄 订阅链接</label>
                               <div className="flex items-start gap-2">
-                                <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{fullLink}</code>
-                                <button onClick={() => copyWithFeedback(fullLink, "link")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
-                                  {copiedKey === "link" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
+                                <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{buildSubscriptionUrl(newClientCredentials.uuid)}</code>
+                                <button onClick={() => copyWithFeedback(buildSubscriptionUrl(newClientCredentials.uuid), "new_subscription_url")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
+                                  {copiedKey === "new_subscription_url" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
                                 </button>
                               </div>
+                              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">支持 v2rayN、Clash Meta/Mihomo 等客户端。节点变化后只需更新订阅。</p>
                             </div>
                             <div className="flex flex-col items-center mt-4 pt-4 border-t border-border">
                               <label className="block text-xs text-muted-foreground mb-3 font-bold">📱 扫描订阅二维码导入</label>
@@ -2076,7 +1959,7 @@ export default function ClientPortal() {
                         )}
                       </div>
                       <div className="bg-warning/10 border border-warning/20 p-3 rounded-lg text-sm text-warning font-bold mt-4">
-                        ⚠️ 请截图或复制保存以上凭证，关闭后将无法再次查看！
+                        ⚠️ 请保存订阅链接或 UUID，之后也可以通过查单功能找回订阅。
                       </div>
                     </div>
                   );
@@ -2764,20 +2647,20 @@ export default function ClientPortal() {
                         {order.status === "processing" && order.order_type === "buy_new" && (
                           <div className="bg-warning/10 border border-warning/20 p-3 rounded-xl mb-3">
                             <p className="text-xs text-warning-foreground">
-                              ⏳ 系统正在为该订单开通节点，请 5-10 秒后刷新页面查看
+                              ⏳ 系统正在为该订单生成订阅，请 5-10 秒后刷新页面查看
                             </p>
                           </div>
                         )}
                         {order.status === "paid" && order.order_type === "buy_new" && (
                           <div className="bg-warning/10 border border-warning/20 p-3 rounded-xl mb-3 flex items-center justify-between gap-3">
                             <p className="text-xs text-warning-foreground">
-                              ⚠️ 此订单已付款但节点尚未生成，请点击右侧按钮补发节点
+                              ⚠️ 此订单已付款但订阅尚未生成，请点击右侧按钮重新生成
                             </p>
                             <button
                               onClick={() => handleRetryFulfill(order.id)}
                               className="bg-warning text-warning-foreground px-3 py-1.5 rounded-lg text-xs font-bold hover:opacity-90 transition-colors whitespace-nowrap"
                             >
-                              补发节点
+                              重新生成
                             </button>
                           </div>
                         )}
@@ -2802,69 +2685,18 @@ export default function ClientPortal() {
                           </div>
                         </div>
 
-                        {order.status === "fulfilled" && order.uuid && order.uuid !== "游客_未登录" && (() => {
-                          const isUuidFormat = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(order.uuid);
-                          const isSocks5 = !isUuidFormat;
-                          return (
+                        {order.status === "fulfilled" && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(order.uuid || "") && (
                           <div className="bg-client-primary/10 border border-client-primary/20 p-4 rounded-xl">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-bold text-client-primary">
-                                🔑 {isSocks5 ? "节点凭证 (SOCKS5 用户名)" : "节点凭证 (UUID)"}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                {!isSocks5 && (
-                                  <button onClick={() => copyWithFeedback(order.uuid, `order-${order.id}`)} className="text-client-primary hover:opacity-70 flex items-center text-xs font-bold">
-                                    {copiedKey === `order-${order.id}` ? <><CheckCircle2 className="w-3 h-3 mr-1 text-success" /> 已复制</> : <><Copy className="w-3 h-3 mr-1" /> 复制</>}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={async () => {
-                                    setLoginInput(order.uuid);
-                                    setUuid(order.uuid);
-                                    setError("");
-                                    try {
-                                      const res = await lookupClient(order.uuid);
-                                      if (res?.success) {
-                                        setClientData({
-                                          expiryDate: res.expiryDate || Date.now() + 30 * 86400000,
-                                          trafficUsed: normalizeTrafficGB(res.trafficUsed ?? 0),
-                                          trafficTotal: normalizeTrafficGB(res.trafficTotal ?? 0),
-                                          email: res.email || "",
-                                          inboundId: res.inboundId,
-                                          inboundRemark: res.inboundRemark || "",
-                                        });
-                                        setLogged(true);
-                                        try { localStorage.setItem("portal_uuid", order.uuid); } catch {}
-
-                                        if (res.credentials && res.connectionInfo) {
-                                          setNewClientCredentials(res.credentials || null);
-                                          setNewClientConnectionInfo(res.connectionInfo || null);
-                                          setNewClientRemark(res.remark || res.email || "");
-                                          setPayStatus("buy_success");
-                                          setTab("buy_new");
-                                        } else {
-                                          setTab("dashboard");
-                                        }
-                                      } else {
-                                        alert("查询失败：" + (res?.error || "未找到"));
-                                      }
-                                    } catch {
-                                      alert("查询失败，请稍后重试");
-                                    }
-                                  }}
-                                  className="bg-client-primary text-client-primary-foreground px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90 transition-colors flex items-center gap-1"
-                                >
-                                  <ChevronRight className="w-3 h-3" /> {isSocks5 ? "查看完整凭证" : "查看链接"}
-                                </button>
-                              </div>
+                              <span className="text-sm font-bold text-client-primary">🔄 订阅链接</span>
+                              <button onClick={() => copyWithFeedback(buildSubscriptionUrl(order.uuid), `order-sub-${order.id}`)} className="text-client-primary hover:opacity-70 flex items-center text-xs font-bold">
+                                {copiedKey === `order-sub-${order.id}` ? <><CheckCircle2 className="w-3 h-3 mr-1 text-success" /> 已复制</> : <><Copy className="w-3 h-3 mr-1" /> 复制订阅</>}
+                              </button>
                             </div>
-                            <code className="block bg-background p-2 rounded border border-border text-sm font-mono break-all">{order.uuid}</code>
-                            {isSocks5 && (
-                              <p className="text-xs text-muted-foreground mt-2">💡 点击「查看完整凭证」获取地址、端口、用户名和密码</p>
-                            )}
+                            <code className="block bg-background p-2 rounded border border-border text-sm font-mono break-all">{buildSubscriptionUrl(order.uuid)}</code>
+                            <p className="text-xs text-muted-foreground mt-2">将此链接添加到 v2rayN、Clash Meta/Mihomo 等客户端的订阅管理中。</p>
                           </div>
-                          );
-                        })()}
+                        )}
                       </div>
                     </div>
                   ))}
