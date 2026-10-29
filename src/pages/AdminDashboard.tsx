@@ -60,6 +60,7 @@ interface AdminConfigData {
   topupMinGb: number;
   topupPrice: number;
   topupBlacklist: string;
+  subscriptionDomain: string;
 }
 
 interface Plan {
@@ -198,6 +199,7 @@ const defaultConfig: AdminConfigData = {
   topupMinGb: 0,
   topupPrice: 0,
   topupBlacklist: "",
+  subscriptionDomain: "dy.ip520.top",
 };
 
 export default function AdminDashboard() {
@@ -1115,6 +1117,34 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-card p-6 rounded-2xl shadow-sm border border-border mt-6">
+              <h2 className="text-xl font-bold mb-4 flex items-center text-admin-primary border-b border-border pb-3">
+                <Server className="w-5 h-5 mr-2" /> 订阅链接域名
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">订阅域名</label>
+                  <input
+                    type="text"
+                    value={config.subscriptionDomain}
+                    onChange={e => setConfig({ ...config, subscriptionDomain: e.target.value })}
+                    placeholder="dy.ip520.top"
+                    className="w-full border border-input p-2.5 rounded-lg focus:ring-2 focus:ring-admin-primary outline-none bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    只填写域名，不要填写 https:// 或路径。更换前请先在 Cloudflare 将新域名解析到当前 VPS；保存后，新生成的用户订阅链接会立即使用该域名，Caddy 会自动放行并配置订阅路由。
+                  </p>
+                  <p className="text-xs text-admin-primary mt-1 font-mono break-all">
+                    预览：https://{config.subscriptionDomain.replace(/^https?:\/\//, "").replace(/[\/?#].*$/, "") || "dy.ip520.top"}/s/用户UUID
+                  </p>
+                </div>
+                <button onClick={() => handleSave("subscriptionDomain")} disabled={!!btnStatus["subscriptionDomain"]}
+                  className="bg-admin-primary text-admin-primary-foreground px-6 py-2.5 rounded-lg font-bold hover:opacity-90 transition-colors shadow-md disabled:opacity-70 whitespace-nowrap">
+                  {btnStatus["subscriptionDomain"] || "保存订阅域名"}
+                </button>
               </div>
             </div>
 

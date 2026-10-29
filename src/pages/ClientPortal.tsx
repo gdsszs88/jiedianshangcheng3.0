@@ -100,6 +100,7 @@ interface PublicConfig {
   topup_min_gb?: number;
   topup_price?: number;
   topup_blacklist?: string;
+  subscription_domain?: string;
 }
 
 interface ClientData {
@@ -250,7 +251,12 @@ export default function ClientPortal() {
   const buildSubscriptionUrl = (identifier?: string | null) => {
     const token = (identifier || "").trim();
     if (!token || token === "游客_未登录") return "";
-    return `https://dy.ip520.top/s/${encodeURIComponent(token)}`;
+    const domain = String(config?.subscription_domain || "dy.ip520.top")
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/[\/?#].*$/, "");
+    return `https://${domain || "dy.ip520.top"}/s/${encodeURIComponent(token)}`;
   };
   const [dynamicPlans, setDynamicPlans] = useState<PlanItem[]>([]);
   const [dynamicRegions, setDynamicRegions] = useState<RegionItem[]>([]);

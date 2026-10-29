@@ -48,6 +48,7 @@ export type Database = {
           resend_api_key: string
           sales_inbound_id: number
           sales_protocol: string
+          subscription_domain: string
           tawk_id: string
           telegram_link: string
           topup_blacklist: string
@@ -89,6 +90,7 @@ export type Database = {
           resend_api_key?: string
           sales_inbound_id?: number
           sales_protocol?: string
+          subscription_domain?: string
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string
@@ -130,6 +132,7 @@ export type Database = {
           resend_api_key?: string
           sales_inbound_id?: number
           sales_protocol?: string
+          subscription_domain?: string
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string
@@ -810,6 +813,7 @@ export type Database = {
           topup_blacklist: string
           topup_min_gb: number
           topup_price: number
+          subscription_domain: string
           video_embed: string
         }[]
       }

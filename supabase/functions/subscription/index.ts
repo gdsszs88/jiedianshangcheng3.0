@@ -181,6 +181,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const url = new URL(req.url);
+    if (url.pathname.endsWith("/domain-authorized")) {
+      const requestedDomain = (url.searchParams.get("domain") || "").trim().toLowerCase().replace(/:\d+$/, "");
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data } = await supabase.from("admin_config").select("subscription_domain").limit(1).maybeSingle();
+      const configuredDomain = String(data?.subscription_domain || "dy.ip520.top").trim().toLowerCase();
+      return new Response(requestedDomain && requestedDomain === configuredDomain ? "allowed" : "forbidden", {
+        status: requestedDomain && requestedDomain === configuredDomain ? 200 : 403,
+        headers: { ...textHeaders, "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
     const pathToken = url.pathname.match(/\/(?:subscription|s)\/([0-9a-f-]{20,})\/?$/i)?.[1] || "";
     const token = (url.searchParams.get("token") || pathToken).trim();
     if (!/^[0-9a-f-]{20,}$/i.test(token)) {

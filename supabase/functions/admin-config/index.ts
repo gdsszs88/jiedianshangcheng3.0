@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
         topupMinGb: data.topup_min_gb ?? 0,
         topupPrice: Number(data.topup_price ?? 0),
         topupBlacklist: data.topup_blacklist || "",
+        subscriptionDomain: data.subscription_domain || "dy.ip520.top",
       };
 
       return new Response(JSON.stringify({ config: frontendConfig }), {
@@ -95,6 +96,18 @@ Deno.serve(async (req) => {
     }
 
     if (action === "save") {
+      const subscriptionDomain = String(config.subscriptionDomain || "dy.ip520.top")
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/[\/?#].*$/, "")
+        .replace(/:\d+$/, "");
+      if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(subscriptionDomain)) {
+        return new Response(JSON.stringify({ error: "订阅域名格式不正确，请只填写域名，例如 dy.ip520.top" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const updateData = {
         panel_url: config.panelUrl,
         panel_user: config.panelUser,
@@ -131,6 +144,7 @@ Deno.serve(async (req) => {
         topup_min_gb: Math.max(0, Math.floor(Number(config.topupMinGb) || 0)),
         topup_price: Math.max(0, Number(config.topupPrice) || 0),
         topup_blacklist: typeof config.topupBlacklist === "string" ? config.topupBlacklist : "",
+        subscription_domain: subscriptionDomain,
       };
 
       const { error } = await supabase
