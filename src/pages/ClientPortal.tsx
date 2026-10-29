@@ -1870,6 +1870,18 @@ export default function ClientPortal() {
 
                       <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-sm text-left max-w-lg mx-auto relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1 h-full bg-client-primary"></div>
+                        {newClientCredentials.uuid && buildSubscriptionUrl(newClientCredentials.uuid) && (
+                          <div className="mb-4">
+                            <label className="block text-xs text-muted-foreground mb-2 font-bold">🔄 订阅链接</label>
+                            <div className="flex items-start gap-2">
+                              <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{buildSubscriptionUrl(newClientCredentials.uuid)}</code>
+                              <button onClick={() => copyWithFeedback(buildSubscriptionUrl(newClientCredentials.uuid), "new_subscription_url")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
+                                {copiedKey === "new_subscription_url" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">支持 v2rayN、Clash Meta/Mihomo 等客户端。节点变化后只需更新订阅。</p>
+                          </div>
+                        )}
                         {newClientCredentials.username ? (
                           <>
                             {newClientConnectionInfo && (
@@ -1938,24 +1950,12 @@ export default function ClientPortal() {
                         )}
 
                         {newClientCredentials.uuid && buildSubscriptionUrl(newClientCredentials.uuid) && (
-                          <>
-                            <div className="mb-4 mt-4 pt-4 border-t border-border">
-                              <label className="block text-xs text-muted-foreground mb-2 font-bold">🔄 订阅链接</label>
-                              <div className="flex items-start gap-2">
-                                <code className="block flex-1 bg-muted p-2 rounded border border-border text-client-primary font-mono text-xs break-all max-h-24 overflow-y-auto">{buildSubscriptionUrl(newClientCredentials.uuid)}</code>
-                                <button onClick={() => copyWithFeedback(buildSubscriptionUrl(newClientCredentials.uuid), "new_subscription_url")} className="text-client-primary hover:opacity-70 mt-1 shrink-0">
-                                  {copiedKey === "new_subscription_url" ? <><CheckCircle2 className="w-5 h-5 text-green-500" /><span className="text-xs text-green-500 ml-1">已复制</span></> : <Copy className="w-5 h-5" />}
-                                </button>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">支持 v2rayN、Clash Meta/Mihomo 等客户端。节点变化后只需更新订阅。</p>
+                          <div className="flex flex-col items-center mt-4 pt-4 border-t border-border">
+                            <label className="block text-xs text-muted-foreground mb-3 font-bold">📱 扫描订阅二维码导入</label>
+                            <div className="bg-white p-3 rounded-xl shadow-sm">
+                              <QRCodeSVG value={buildSubscriptionUrl(newClientCredentials.uuid)} size={180} />
                             </div>
-                            <div className="flex flex-col items-center mt-4 pt-4 border-t border-border">
-                              <label className="block text-xs text-muted-foreground mb-3 font-bold">📱 扫描订阅二维码导入</label>
-                              <div className="bg-white p-3 rounded-xl shadow-sm">
-                                <QRCodeSVG value={buildSubscriptionUrl(newClientCredentials.uuid)} size={180} />
-                              </div>
-                            </div>
-                          </>
+                          </div>
                         )}
                       </div>
                       <div className="bg-warning/10 border border-warning/20 p-3 rounded-lg text-sm text-warning font-bold mt-4">
