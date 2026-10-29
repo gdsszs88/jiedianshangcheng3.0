@@ -321,7 +321,10 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get("user-agent") || "";
     const target = (url.searchParams.get("target") || "").toLowerCase();
     const wantsClash = target === "clash" || /clash|mihomo|stash/i.test(userAgent);
-    const clientKeys = [token, client.id, client.password, client.email]
+    // 3x-ui can keep clientStats.email at the previous client name after the
+    // administrator renames settings.clients[].email. Match both the current
+    // panel name and the original saved name so traffic remains discoverable.
+    const clientKeys = [token, client.id, client.password, client.email, record.client_email]
       .filter((value): value is string => typeof value === "string" && value.length > 0);
     const clientStats = (Array.isArray(inbound.clientStats) ? inbound.clientStats : []).find((item: any) =>
       typeof item?.email === "string" && clientKeys.includes(item.email)
