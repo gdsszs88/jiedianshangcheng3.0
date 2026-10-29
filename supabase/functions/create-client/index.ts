@@ -401,10 +401,60 @@ Deno.serve(async (req) => {
           pool = pool.filter((ri: any) => !previouslyUsedInboundIds.has(Number(ri.inbound_id)));
           stockPoolIds = pool.map((ri: any) => ri.id);
           
-          // Pick first inbound with available stock (max_clients=0 means unlimited)
-          const available = pool.find((ri: any) =>
+          // Pick the first usable inbound. A mapping alone is not enough: newly added
+          // products are often accidentally mapped to an inbound that lives on a
+          // different panel (or no longer exists). Verify each candidate and continue
+          // to the next one instead of failing the paid order on the first bad mapping.
+          const primaryPanel = {
+            panel_url: config.panel_url,
+            panel_user: config.panel_user,
+            panel_pass: config.panel_pass,
+          };
+          const inStock = pool.filter((ri: any) =>
             !ri.max_clients || ri.max_clients <= 0 || (ri.current_clients || 0) < ri.max_clients
           );
+          let available: any = null;
+          let availablePanel: any = null;
+          const rejectedCandidates: string[] = [];
+
+          for (const candidate of inStock) {
+            let candidatePanel: any = { ...primaryPanel };
+            if (candidate.panel_id) {
+              const { data: boundPanel } = await supabase
+                .from("panels")
+                .select("panel_url, panel_user, panel_pass")
+                .eq("id", candidate.panel_id)
+                .maybeSingle();
+              if (boundPanel?.panel_url) candidatePanel = boundPanel;
+            }
+
+            try {
+              const candidateCookie = await login3xui(
+                candidatePanel.panel_url,
+                candidatePanel.panel_user,
+                candidatePanel.panel_pass,
+              );
+              if (!candidateCookie) {
+                rejectedCandidates.push(`#${candidate.inbound_id}: 面板登录失败`);
+                continue;
+              }
+              const candidateBaseUrl = candidatePanel.panel_url.replace(/\/+$/, "");
+              const checkRes = await fetchUnsafe(`${candidateBaseUrl}/panel/api/inbounds/get/${candidate.inbound_id}`, {
+                headers: { Cookie: candidateCookie, Accept: "application/json" },
+              });
+              const checkData = await safeJson(checkRes);
+              if (!checkData?.success || !checkData?.obj) {
+                rejectedCandidates.push(`#${candidate.inbound_id}: 入站不存在`);
+                continue;
+              }
+              available = candidate;
+              availablePanel = candidatePanel;
+              break;
+            } catch (candidateErr) {
+              console.error(`preflight inbound #${candidate.inbound_id} failed`, candidateErr);
+              rejectedCandidates.push(`#${candidate.inbound_id}: 连接异常`);
+            }
+          }
           
           if (!available) {
             // All inbounds for this plan are full or already used by this buyer — block purchase
@@ -419,6 +469,11 @@ Deno.serve(async (req) => {
           salesInboundId = available.inbound_id;
           foundViaInboundPlans = true;
           if (available.protocol) salesProtocol = available.protocol;
+          if (availablePanel?.panel_url) {
+            config.panel_url = availablePanel.panel_url;
+            config.panel_user = availablePanel.panel_user;
+            config.panel_pass = availablePanel.panel_pass;
+          }
 
           // Resolve the exact plan tied to this region_inbound (avoid title collisions
           // across regions giving the wrong traffic_gb). Prefer plans whose region_id
@@ -437,18 +492,8 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Override panel credentials if this inbound is bound to a specific panel
-          if (available.panel_id) {
-            const { data: boundPanel } = await supabase
-              .from("panels")
-              .select("panel_url, panel_user, panel_pass")
-              .eq("id", available.panel_id)
-              .maybeSingle();
-            if (boundPanel?.panel_url) {
-              config.panel_url = boundPanel.panel_url;
-              config.panel_user = boundPanel.panel_user;
-              config.panel_pass = boundPanel.panel_pass;
-            }
+          if (rejectedCandidates.length > 0) {
+            console.warn("Skipped unusable inbound mappings:", rejectedCandidates.join("; "));
           }
         }
       }

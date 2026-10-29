@@ -980,11 +980,13 @@ export default function ClientPortal() {
                 setPayStatus("buy_success");
                 setTab("buy_new");
               } else {
-                setPayStatus("buy_success");
+                setError(createRes?.error || "支付已成功，但节点开通失败，请点击查单重试或联系客服");
+                setPayStatus("paid_unfulfilled");
                 setTab("buy_new");
               }
-            } catch {
-              setPayStatus("buy_success");
+            } catch (err: any) {
+              setError(err?.message || "支付已成功，但节点开通失败，请点击查单重试或联系客服");
+              setPayStatus("paid_unfulfilled");
               setTab("buy_new");
             } finally {
               inFlightCreateRef.current.delete(oid);
@@ -2235,8 +2237,9 @@ export default function ClientPortal() {
               )}
               {payStatus === "paid_unfulfilled" && (
                 <div className="bg-warning/10 border border-warning/20 p-6 rounded-2xl text-center mb-6">
-                  <h3 className="text-lg font-bold mb-2">⚠️ 支付已确认，但{checkoutData?.type === "topup_traffic" ? "流量充值" : "续期"}操作失败</h3>
-                  <p className="text-muted-foreground text-sm">请联系站长处理，订单号：{orderId}</p>
+                  <h3 className="text-lg font-bold mb-2">⚠️ 支付已确认，但{checkoutData?.type === "buy_new" ? "节点开通" : checkoutData?.type === "topup_traffic" ? "流量充值" : "续期"}操作失败</h3>
+                  <p className="text-destructive text-sm mb-2">{error || "系统未能完成自动处理"}</p>
+                  <p className="text-muted-foreground text-sm">您的付款不会丢失。请使用下方查单功能重试，订单号：{orderId}</p>
                 </div>
               )}
               {payStatus === "expired" && (
