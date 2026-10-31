@@ -17,7 +17,7 @@ export default function AdminLogin() {
       const res = await adminLogin(password);
       if (res?.token) {
         sessionStorage.setItem("admin_token", res.token);
-        navigate("/admin/dashboard");
+        navigate("/3075554556/dashboard");
       } else {
         setError("密码错误！");
       }

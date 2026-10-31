@@ -250,7 +250,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!token) {
-      navigate("/admin");
+      navigate("/3075554556");
       return;
     }
     loadConfig();
@@ -352,7 +352,7 @@ export default function AdminDashboard() {
       const res = await getAdminConfig(token);
       if (res?.config) setConfig(res.config);
     } catch {
-      navigate("/admin");
+      navigate("/3075554556");
     } finally {
       setLoading(false);
     }
@@ -702,7 +702,7 @@ export default function AdminDashboard() {
 
   const logout = () => {
     sessionStorage.removeItem("admin_token");
-    navigate("/admin");
+    navigate("/3075554556");
   };
 
   const categoryLabels: Record<string, string> = {
