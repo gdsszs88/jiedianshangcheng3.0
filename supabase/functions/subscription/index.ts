@@ -122,13 +122,23 @@ function formatTrafficGB(bytes: number): string {
   return (Math.max(0, Number(bytes || 0)) / 1073741824).toFixed(2);
 }
 
-function buildTrafficDisplayLink(token: string, upload: number, download: number, total: number): string {
+function buildTrafficDisplayLink(
+  protocol: string,
+  token: string,
+  address: string,
+  inbound: any,
+  client: any,
+  upload: number,
+  download: number,
+  total: number,
+): string {
   const used = Math.max(0, upload + download);
   const remaining = Math.max(0, total - used);
   const name = `${formatTrafficGB(used)}/${formatTrafficGB(total)}GB｜剩余 ${formatTrafficGB(remaining)}GB｜更新订阅刷新当前流量📊`;
-  // An intentionally non-routable local endpoint. It is shown in v2rayN only as
-  // a live status row and cannot accidentally consume a real server connection.
-  return `vless://${token}@127.0.0.1:1?encryption=none&type=tcp&security=none#${encodeURIComponent(name)}`;
+  // Use the same working server, UUID and transport settings as the real node.
+  // The duplicate differs only by its traffic-status name, so selecting it by
+  // mistake still provides a normal connection.
+  return buildShareLink(protocol, token, address, inbound, client, name);
 }
 
 function buildClashYaml(protocol: string, token: string, address: string, inbound: any, client: any, name: string): string {
@@ -439,7 +449,9 @@ Deno.serve(async (req) => {
     }
     const link = buildShareLink(protocol, token, address, inbound, client, name);
     const wantsV2rayN = /v2rayn/i.test(userAgent);
-    const trafficLink = wantsV2rayN ? buildTrafficDisplayLink(token, upload, download, Math.max(0, total)) : "";
+    const trafficLink = wantsV2rayN
+      ? buildTrafficDisplayLink(protocol, token, address, inbound, client, upload, download, Math.max(0, total))
+      : "";
     const links = trafficLink ? `${trafficLink}\n${link}\n` : `${link}\n`;
     const encoded = btoa(unescape(encodeURIComponent(links)));
     return new Response(encoded, { headers: { ...commonHeaders, "Content-Type": "text/plain; charset=utf-8" } });
