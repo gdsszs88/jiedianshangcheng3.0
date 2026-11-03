@@ -293,6 +293,8 @@ Deno.serve(async (req) => {
 
       // Calculate traffic in GB
       const trafficUsedGB = (client.up + client.down) / 1073741824;
+      const trafficUploadGB = client.up / 1073741824;
+      const trafficDownloadGB = client.down / 1073741824;
       const trafficTotalGB = client.total > 0 ? client.total / 1073741824 : 999;
 
       const connectionInfo = {
@@ -347,6 +349,8 @@ Deno.serve(async (req) => {
         inboundRemark: client.inboundRemark || "",
         expiryDate: finalExpiryTime,
         trafficUsed: Math.round(trafficUsedGB * 100) / 100,
+        trafficUpload: Math.round(trafficUploadGB * 100) / 100,
+        trafficDownload: Math.round(trafficDownloadGB * 100) / 100,
         trafficTotal: Math.round(trafficTotalGB * 100) / 100,
         enable: client.enable,
         credentials,

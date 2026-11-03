@@ -106,6 +106,8 @@ interface PublicConfig {
 interface ClientData {
   expiryDate: number;
   trafficUsed: number;
+  trafficUpload?: number;
+  trafficDownload?: number;
   trafficTotal: number;
   email?: string;
   inboundId?: number;
@@ -245,6 +247,8 @@ export default function ClientPortal() {
   const [clientData, setClientData] = useState<ClientData>({
     expiryDate: Date.now(),
     trafficUsed: 0,
+    trafficUpload: 0,
+    trafficDownload: 0,
     trafficTotal: 100,
   });
 
@@ -412,6 +416,8 @@ export default function ClientPortal() {
           setClientData({
             expiryDate: res.expiryDate ?? 0,
             trafficUsed: normalizeTrafficGB(res.trafficUsed ?? 0),
+            trafficUpload: normalizeTrafficGB(res.trafficUpload ?? 0),
+            trafficDownload: normalizeTrafficGB(res.trafficDownload ?? 0),
             trafficTotal: normalizeTrafficGB(res.trafficTotal ?? 100),
             email: res.email || "",
             inboundId: res.inboundId,
@@ -464,10 +470,12 @@ export default function ClientPortal() {
     let retryTimer: number | undefined;
     let closed = false;
 
-    const apply = (snap: { trafficUsed?: number; trafficTotal?: number }) => {
+    const apply = (snap: { trafficUsed?: number; trafficUpload?: number; trafficDownload?: number; trafficTotal?: number }) => {
       setClientData((prev) => ({
         ...prev,
         trafficUsed: normalizeTrafficGB(snap.trafficUsed ?? prev.trafficUsed),
+        trafficUpload: normalizeTrafficGB(snap.trafficUpload ?? prev.trafficUpload ?? 0),
+        trafficDownload: normalizeTrafficGB(snap.trafficDownload ?? prev.trafficDownload ?? 0),
       }));
     };
 
@@ -700,6 +708,8 @@ export default function ClientPortal() {
         setClientData({
           expiryDate: res.expiryDate ?? 0,
           trafficUsed: normalizeTrafficGB(res.trafficUsed ?? 0),
+          trafficUpload: normalizeTrafficGB(res.trafficUpload ?? 0),
+          trafficDownload: normalizeTrafficGB(res.trafficDownload ?? 0),
           trafficTotal: normalizeTrafficGB(res.trafficTotal ?? 100),
           email: res.email || "",
           inboundId: res.inboundId,
@@ -953,6 +963,8 @@ export default function ClientPortal() {
                       setClientData({
                         expiryDate: lookupRes.expiryDate ?? 0,
                         trafficUsed: normalizeTrafficGB(lookupRes.trafficUsed ?? 0),
+                        trafficUpload: normalizeTrafficGB(lookupRes.trafficUpload ?? 0),
+                        trafficDownload: normalizeTrafficGB(lookupRes.trafficDownload ?? 0),
                         trafficTotal: normalizeTrafficGB(lookupRes.trafficTotal ?? 100),
                         email: lookupRes.email || createRes.remark || "",
                         inboundId: lookupRes.inboundId,
@@ -1000,6 +1012,8 @@ export default function ClientPortal() {
                 setClientData((prev) => ({
                   ...prev,
                   trafficUsed: normalizeTrafficGB(lookupRes.trafficUsed ?? prev.trafficUsed),
+                  trafficUpload: normalizeTrafficGB(lookupRes.trafficUpload ?? prev.trafficUpload ?? 0),
+                  trafficDownload: normalizeTrafficGB(lookupRes.trafficDownload ?? prev.trafficDownload ?? 0),
                   trafficTotal: normalizeTrafficGB(lookupRes.trafficTotal ?? prev.trafficTotal),
                   email: lookupRes.email || prev.email,
                   expiryDate: lookupRes.expiryDate ?? prev.expiryDate,
@@ -1130,6 +1144,8 @@ export default function ClientPortal() {
               setClientData((prev) => ({
                 ...prev,
                 trafficUsed: normalizeTrafficGB(lookupRes.trafficUsed ?? prev.trafficUsed),
+                trafficUpload: normalizeTrafficGB(lookupRes.trafficUpload ?? prev.trafficUpload ?? 0),
+                trafficDownload: normalizeTrafficGB(lookupRes.trafficDownload ?? prev.trafficDownload ?? 0),
                 trafficTotal: normalizeTrafficGB(lookupRes.trafficTotal ?? prev.trafficTotal),
               }));
             } else {
@@ -1549,6 +1565,11 @@ export default function ClientPortal() {
                       <div className="flex items-end mb-3">
                         <span className="text-5xl font-extrabold text-foreground">{clientData.trafficUsed.toFixed(2)}</span>
                         <span className="text-success font-bold mb-1 ml-2">/ {clientData.trafficTotal} GB</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mb-3 text-sm font-bold tabular-nums">
+                        <span className="text-sky-600 dark:text-sky-400">↑ 上传 {(clientData.trafficUpload ?? 0).toFixed(2)} GB</span>
+                        <span className="text-violet-600 dark:text-violet-400">下载 {(clientData.trafficDownload ?? 0).toFixed(2)} GB ↓</span>
+                        <span className="text-xs text-muted-foreground font-medium">自动实时更新</span>
                       </div>
                       <div className="w-full bg-success/20 rounded-full h-2.5">
                         <div
@@ -2196,6 +2217,8 @@ export default function ClientPortal() {
                           setClientData({
                             expiryDate: res.expiryDate ?? 0,
                             trafficUsed: normalizeTrafficGB(res.trafficUsed ?? 0),
+                            trafficUpload: normalizeTrafficGB(res.trafficUpload ?? 0),
+                            trafficDownload: normalizeTrafficGB(res.trafficDownload ?? 0),
                             trafficTotal: normalizeTrafficGB(res.trafficTotal ?? 100),
                             email: res.email || "",
                             inboundId: res.inboundId,

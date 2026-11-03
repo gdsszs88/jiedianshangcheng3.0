@@ -97,8 +97,10 @@ async function snapshot(supabase: any, uuid: string) {
     const found = findClient(inbounds, uuid);
     if (found) {
       const trafficUsed = Math.round(((found.up + found.down) / GB) * 100) / 100;
+      const trafficUpload = Math.round((found.up / GB) * 100) / 100;
+      const trafficDownload = Math.round((found.down / GB) * 100) / 100;
       const trafficTotal = found.total > 0 ? Math.round((found.total / GB) * 100) / 100 : 999;
-      return { trafficUsed, trafficTotal, enable: found.enable };
+      return { trafficUsed, trafficUpload, trafficDownload, trafficTotal, enable: found.enable };
     }
   }
   return null;
@@ -147,7 +149,7 @@ Deno.serve((req) => {
           const snap = await snapshot(supabase, uuid);
           if (cancelled) return;
           if (snap) {
-            const key = `${snap.trafficUsed}|${snap.trafficTotal}|${snap.enable}`;
+            const key = `${snap.trafficUsed}|${snap.trafficUpload}|${snap.trafficDownload}|${snap.trafficTotal}|${snap.enable}`;
             if (key !== last) {
               last = key;
               send("traffic", snap);
