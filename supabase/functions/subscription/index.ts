@@ -386,7 +386,11 @@ Deno.serve(async (req) => {
     // the next time the user refreshes the subscription. Database values are only
     // fallbacks for legacy clients whose panel-side name is empty.
     const liveClientName = String(client.email || client.user || client.username || "").trim();
-    const name = liveClientName || record.client_email || record.plan_title || inbound.remark || "IP520";
+    const baseClientName = String(liveClientName || record.client_email || record.plan_title || "IP520").trim();
+    const inboundName = String(inbound.remark || "").trim();
+    const name = inboundName && baseClientName !== inboundName && !baseClientName.startsWith(`${inboundName}-`)
+      ? `${inboundName}-${baseClientName}`
+      : baseClientName;
     const userAgent = req.headers.get("user-agent") || "";
     const target = (url.searchParams.get("target") || "").toLowerCase();
     const wantsClash = target === "clash" || /clash|mihomo|stash/i.test(userAgent);
