@@ -62,9 +62,15 @@ def locate_site_block(caddyfile: str, apex_domain: str, www_domain: str) -> tupl
         if line.lstrip().startswith(("#", "//")):
             offset += len(line)
             continue
-        if "{" in line and (apex_domain in line or www_domain in line):
-            start = offset
-            break
+        if "{" in line:
+            site_label = line.split("{", 1)[0]
+            hosts = {
+                item.strip().removeprefix("http://").removeprefix("https://").rstrip("/")
+                for item in site_label.split(",")
+            }
+            if apex_domain in hosts or www_domain in hosts:
+                start = offset
+                break
         offset += len(line)
     if start < 0:
         raise RuntimeError(f"没有找到 {apex_domain}/{www_domain} 的 Caddy 站点块")
