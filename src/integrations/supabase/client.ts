@@ -2,13 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const CONFIGURED_SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// In production, route browser API traffic through our own site domain. Direct
+// access to *.supabase.co is unreliable on some mainland networks, while the
+// same-origin reverse proxy remains reachable whenever the website is reachable.
+export const supabaseUrl = typeof window !== "undefined" && /(^|\.)ip520\.top$/i.test(window.location.hostname)
+  ? `${window.location.origin}/supabase`
+  : CONFIGURED_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+export const supabase = createClient<Database>(supabaseUrl, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,

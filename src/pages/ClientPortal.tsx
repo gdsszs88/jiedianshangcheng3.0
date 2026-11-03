@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { BookOpen } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, supabaseUrl } from "@/integrations/supabase/client";
 import {
   User,
   CreditCard,
@@ -462,7 +462,6 @@ export default function ClientPortal() {
     const uuid = localStorage.getItem("portal_uuid");
     if (!uuid || uuid === "游客_未登录") return;
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
     const url = `${supabaseUrl}/functions/v1/traffic-stream?uuid=${encodeURIComponent(uuid)}&apikey=${encodeURIComponent(anonKey)}`;
 
