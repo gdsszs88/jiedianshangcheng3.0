@@ -1,0 +1,17 @@
+# BEGIN IP520 MANAGED SITE ROUTES
+http://{{APEX_DOMAIN}}, https://{{APEX_DOMAIN}}, http://{{WWW_DOMAIN}}, https://{{WWW_DOMAIN}} {
+  encode zstd gzip
+
+  # Keep browser API traffic on the website domain. This avoids requiring
+  # visitors to connect to *.supabase.co directly.
+  handle_path /supabase/* {
+    reverse_proxy https://{{SUPABASE_HOST}} {
+      header_up Host {{SUPABASE_HOST}}
+    }
+  }
+
+  handle {
+    reverse_proxy {{APP_UPSTREAM}}
+  }
+}
+# END IP520 MANAGED SITE ROUTES

@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 supabase/.temp/
+__pycache__/
+*.pyc
 
 # Editor directories and files
 .vscode/*
