@@ -99,6 +99,8 @@ interface PublicConfig {
   crypto_address: string | null;
   topup_min_gb?: number;
   topup_price?: number;
+  topup_large_min_gb?: number;
+  topup_large_price?: number;
   topup_blacklist?: string;
   subscription_domain?: string;
 }
@@ -294,6 +296,8 @@ export default function ClientPortal() {
   const [announcement, setAnnouncement] = useState<string>("");
   const [expandedTutorialId, setExpandedTutorialId] = useState<string | null>(null);
   const [topupGbInput, setTopupGbInput] = useState<string>("");
+  const [largeTopupGbInput, setLargeTopupGbInput] = useState<string>("");
+  const [topupPurchaseKind, setTopupPurchaseKind] = useState<"standard" | "large">("standard");
   const [topupConfirmOpen, setTopupConfirmOpen] = useState(false);
   const [topupBlockedOpen, setTopupBlockedOpen] = useState(false);
   const [topupBlockedReason, setTopupBlockedReason] = useState<"blacklist" | "expired">("blacklist");
@@ -365,6 +369,8 @@ export default function ClientPortal() {
         setConfig(c);
         const min = Number(c?.topup_min_gb || 0);
         if (min > 0) setTopupGbInput(String(min));
+        const largeMin = Number(c?.topup_large_min_gb || 0);
+        if (largeMin > 0) setLargeTopupGbInput(String(largeMin));
       })
       .catch(() => {});
     getPlans()
@@ -1585,10 +1591,18 @@ export default function ClientPortal() {
               {(() => {
                 const minGb = Number(config?.topup_min_gb || 0);
                 const unitPrice = Number(config?.topup_price || 0);
+                const largeMinGb = Number(config?.topup_large_min_gb || 0);
+                const largeUnitPrice = Number(config?.topup_large_price || 0);
+                const largeEnabled = largeMinGb > 0 && largeUnitPrice > 0;
                 if (!minGb || minGb <= 0 || !unitPrice || unitPrice <= 0 || !clientDataLoaded) return null;
                 const gbNum = Number(topupGbInput);
                 const gbValid = Number.isFinite(gbNum) && Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
                 const computedAmount = gbValid ? Number((unitPrice * (gbNum / minGb)).toFixed(2)) : 0;
+                const largeGbNum = Number(largeTopupGbInput);
+                const largeGbValid = largeEnabled && Number.isFinite(largeGbNum) && Number.isInteger(largeGbNum) && largeGbNum >= largeMinGb && largeGbNum % largeMinGb === 0;
+                const largeComputedAmount = largeGbValid ? Number((largeUnitPrice * (largeGbNum / largeMinGb)).toFixed(2)) : 0;
+                const selectedGb = topupPurchaseKind === "large" ? largeGbNum : gbNum;
+                const selectedAmount = topupPurchaseKind === "large" ? largeComputedAmount : computedAmount;
                 const isBlacklisted = isTopupBlockedByBlacklist;
                 const isExpired = clientData.expiryDate > 0 && clientData.expiryDate <= nowTick;
                 const isTopupBlocked = isBlacklisted || isExpired;
@@ -1632,13 +1646,44 @@ export default function ClientPortal() {
                         <div className="text-2xl font-extrabold text-client-primary">¥{computedAmount.toFixed(2)}</div>
                       </div>
                       <button
-                        onClick={() => isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true)}
+                        onClick={() => {
+                          setTopupPurchaseKind("standard");
+                          isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
+                        }}
                         disabled={(!isTopupBlocked && !gbValid) || uuid === "游客_未登录"}
                         className="bg-client-primary text-client-primary-foreground font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         购买流量
                       </button>
                     </div>
+                    {largeEnabled && (
+                      <div className="mt-4 rounded-xl border border-orange-300/70 bg-gradient-to-r from-orange-50 to-amber-50 p-4 dark:border-orange-500/30 dark:from-orange-500/10 dark:to-amber-500/10">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-bold text-orange-700 dark:text-orange-300">🔥 大额流量购买 <span className="ml-1 rounded-full bg-orange-500 px-2 py-0.5 text-xs text-white">大额优惠</span></div>
+                          <div className="text-sm text-muted-foreground">优惠价：<span className="font-bold text-orange-600 dark:text-orange-300">¥{largeUnitPrice}</span> / {largeMinGb}GB</div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+                          <div className="flex-1">
+                            <label className="block text-xs text-muted-foreground mb-1">请输入大额购买流量 GB（必须为 {largeMinGb} 的倍数，最小 {largeMinGb}GB）</label>
+                            <input type="number" inputMode="numeric" min={largeMinGb} step={largeMinGb}
+                              value={largeTopupGbInput} onChange={(e) => setLargeTopupGbInput(e.target.value)}
+                              placeholder={`例如 ${largeMinGb}、${largeMinGb * 2}、${largeMinGb * 3}`}
+                              className="w-full border border-orange-300 p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-orange-400 outline-none" />
+                          </div>
+                          <div className="text-sm"><div className="text-muted-foreground">优惠应付</div><div className="text-2xl font-extrabold text-orange-600 dark:text-orange-300">¥{largeComputedAmount.toFixed(2)}</div></div>
+                          <button
+                            onClick={() => {
+                              setTopupPurchaseKind("large");
+                              isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
+                            }}
+                            disabled={(!isTopupBlocked && !largeGbValid) || uuid === "游客_未登录"}
+                            className="bg-orange-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-orange-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            优惠购买
+                          </button>
+                        </div>
+                        {!largeGbValid && largeTopupGbInput && !isBlacklisted && <p className="text-xs text-destructive mt-2">大额流量必须为 {largeMinGb} 的倍数，且不少于 {largeMinGb}GB</p>}
+                      </div>
+                    )}
                     {!gbValid && topupGbInput && !isBlacklisted && (
                       <p className="text-xs text-destructive mt-2">流量必须为 {minGb} 的倍数，且不少于 {minGb}GB</p>
                     )}
@@ -1658,10 +1703,10 @@ export default function ClientPortal() {
                         <div className="bg-card max-w-md w-full p-6 rounded-2xl shadow-2xl border border-border" onClick={(e) => e.stopPropagation()}>
                           <h3 className="text-lg font-bold mb-3">确认购买流量包</h3>
                           <p className="text-muted-foreground mb-2">
-                            确认购买 <span className="font-bold text-foreground">{gbNum}GB</span> 流量包？
+                            确认购买 <span className="font-bold text-foreground">{selectedGb}GB</span> {topupPurchaseKind === "large" ? "大额优惠流量包" : "流量包"}？
                           </p>
                           <p className="text-muted-foreground mb-5">
-                            应付金额：<span className="font-bold text-client-primary">¥{computedAmount.toFixed(2)}</span>
+                            应付金额：<span className="font-bold text-client-primary">¥{selectedAmount.toFixed(2)}</span>
                           </p>
                           <div className="flex justify-end gap-2">
                             <button
@@ -1673,7 +1718,7 @@ export default function ClientPortal() {
                             <button
                               onClick={() => {
                                 setTopupConfirmOpen(false);
-                                initiateCheckout(gbNum, computedAmount, `流量充值 ${gbNum}GB`, "topup_traffic", null, 0);
+                                initiateCheckout(selectedGb, selectedAmount, `${topupPurchaseKind === "large" ? "大额优惠流量充值" : "流量充值"} ${selectedGb}GB`, "topup_traffic", null, 0);
                               }}
                               className="px-4 py-2 rounded-lg bg-client-primary text-client-primary-foreground text-sm font-bold hover:opacity-90"
                             >

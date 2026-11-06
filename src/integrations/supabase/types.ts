@@ -53,6 +53,8 @@ export type Database = {
           tawk_id: string
           telegram_link: string
           topup_blacklist: string
+          topup_large_min_gb: number
+          topup_large_price: number
           topup_min_gb: number
           topup_price: number
           updated_at: string
@@ -96,6 +98,8 @@ export type Database = {
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string
+          topup_large_min_gb?: number
+          topup_large_price?: number
           topup_min_gb?: number
           topup_price?: number
           updated_at?: string
@@ -139,6 +143,8 @@ export type Database = {
           tawk_id?: string
           telegram_link?: string
           topup_blacklist?: string
+          topup_large_min_gb?: number
+          topup_large_price?: number
           topup_min_gb?: number
           topup_price?: number
           updated_at?: string
@@ -814,6 +820,8 @@ export type Database = {
           tawk_id: string
           telegram_link: string
           topup_blacklist: string
+          topup_large_min_gb: number
+          topup_large_price: number
           topup_min_gb: number
           topup_price: number
           subscription_domain: string

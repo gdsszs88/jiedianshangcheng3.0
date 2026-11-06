@@ -86,6 +86,8 @@ Deno.serve(async (req) => {
         notifyStockOut: data.notify_stock_out ?? false,
         topupMinGb: data.topup_min_gb ?? 0,
         topupPrice: Number(data.topup_price ?? 0),
+        topupLargeMinGb: data.topup_large_min_gb ?? 0,
+        topupLargePrice: Number(data.topup_large_price ?? 0),
         topupBlacklist: data.topup_blacklist || "",
         subscriptionDomain: data.subscription_domain || "dy.ip520.top",
       };
@@ -153,6 +155,8 @@ Deno.serve(async (req) => {
         notify_stock_out: config.notifyStockOut,
         topup_min_gb: Math.max(0, Math.floor(Number(config.topupMinGb) || 0)),
         topup_price: Math.max(0, Number(config.topupPrice) || 0),
+        topup_large_min_gb: Math.max(0, Math.floor(Number(config.topupLargeMinGb) || 0)),
+        topup_large_price: Math.max(0, Number(config.topupLargePrice) || 0),
         topup_blacklist: typeof config.topupBlacklist === "string" ? config.topupBlacklist : "",
         subscription_domain: subscriptionDomain,
         subscription_domain_history: subscriptionDomainHistory,

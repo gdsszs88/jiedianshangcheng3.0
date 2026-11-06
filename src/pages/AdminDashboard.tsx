@@ -59,6 +59,8 @@ interface AdminConfigData {
   notifyStockOut: boolean;
   topupMinGb: number;
   topupPrice: number;
+  topupLargeMinGb: number;
+  topupLargePrice: number;
   topupBlacklist: string;
   subscriptionDomain: string;
 }
@@ -198,6 +200,8 @@ const defaultConfig: AdminConfigData = {
   notifyStockOut: false,
   topupMinGb: 0,
   topupPrice: 0,
+  topupLargeMinGb: 0,
+  topupLargePrice: 0,
   topupBlacklist: "",
   subscriptionDomain: "dy.ip520.top",
 };
@@ -1669,7 +1673,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <h3 className="font-bold text-base flex items-center"><Package className="w-4 h-4 mr-2" /> 📊 流量充值配置</h3>
-                    <p className="text-xs text-muted-foreground mt-1">设置最低充值 GB 与价格。任一为 0 则前台不显示充值入口。</p>
+                    <p className="text-xs text-muted-foreground mt-1">设置普通购买与大额优惠购买档位。大额档位任一项为 0 时，前台不显示大额购买入口。</p>
                   </div>
                   <button
                     onClick={() => handleSave("saveTopup")}
@@ -1691,6 +1695,21 @@ export default function AdminDashboard() {
                       value={config.topupPrice ?? 0}
                       onChange={e => setConfig({ ...config, topupPrice: Number(e.target.value) || 0 })}
                       className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">大额流量起购（GB）— 用户必须按此倍数购买</label>
+                    <input type="number" min={0} step={1}
+                      value={config.topupLargeMinGb ?? 0}
+                      onChange={e => setConfig({ ...config, topupLargeMinGb: Number(e.target.value) || 0 })}
+                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">大额优惠价（¥）— 每 {config.topupLargeMinGb || 0}GB 的价格</label>
+                    <input type="number" min={0} step={0.01}
+                      value={config.topupLargePrice ?? 0}
+                      onChange={e => setConfig({ ...config, topupLargePrice: Number(e.target.value) || 0 })}
+                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">
@@ -1763,7 +1782,6 @@ export default function AdminDashboard() {
                     当前黑名单：<span className="font-bold text-foreground">{blacklistRules.length}</span> 个 UUID；旧文本格式会自动按“禁止续费 + 禁止购买流量”兼容。
                   </p>
                 </div>
-              </div>
               </div>
 
               {/* 当前分组内容 */}

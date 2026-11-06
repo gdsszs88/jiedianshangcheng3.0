@@ -1012,19 +1012,26 @@ Deno.serve(async (req) => {
           const gbNum = Number(gb);
           const { data: cfg } = await supabase
             .from("admin_config")
-            .select("topup_min_gb, topup_price")
+            .select("topup_min_gb, topup_price, topup_large_min_gb, topup_large_price")
             .limit(1)
             .maybeSingle();
           const minGb = Number(cfg?.topup_min_gb || 0);
           const unitPrice = Number(cfg?.topup_price || 0);
+          const largeMinGb = Number(cfg?.topup_large_min_gb || 0);
+          const largeUnitPrice = Number(cfg?.topup_large_price || 0);
           if (!minGb || minGb <= 0 || !unitPrice || unitPrice <= 0) {
             return new Response(JSON.stringify({ error: "流量充值未配置，请联系管理员" }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-          if (!gbNum || !Number.isInteger(gbNum) || gbNum < minGb || gbNum % minGb !== 0) {
-            return new Response(JSON.stringify({ error: `购买流量必须为 ${minGb} 的倍数，最小 ${minGb}GB` }), {
+          const standardTierValid = Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
+          const largeTierValid = largeMinGb > 0 && largeUnitPrice > 0 && Number.isInteger(gbNum) && gbNum >= largeMinGb && gbNum % largeMinGb === 0;
+          if (!gbNum || (!standardTierValid && !largeTierValid)) {
+            const tierHint = largeMinGb > 0 && largeUnitPrice > 0
+              ? `，或按大额优惠档位 ${largeMinGb}GB 的倍数购买`
+              : "";
+            return new Response(JSON.stringify({ error: `购买流量必须为 ${minGb}GB 的倍数${tierHint}` }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -1049,8 +1056,11 @@ Deno.serve(async (req) => {
             });
           }
 
-          // unitPrice is per minGb; recompute server-side
-          finalAmount = Number((unitPrice * (gbNum / minGb)).toFixed(2));
+          // Always recompute server-side. Exact large-tier multiples receive the configured discount.
+          const useLargeTier = largeTierValid;
+          finalAmount = Number((useLargeTier
+            ? largeUnitPrice * (gbNum / largeMinGb)
+            : unitPrice * (gbNum / minGb)).toFixed(2));
           finalPlanName = `流量充值 ${gbNum}GB`;
           finalMonths = gbNum; // store actual GB in months field
           finalDurationDays = 0;
