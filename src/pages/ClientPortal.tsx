@@ -1617,9 +1617,6 @@ export default function ClientPortal() {
                           如需延长账户有效期，请点击左侧「在线续费」
                         </p>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        单价：<span className="font-bold text-foreground">¥{unitPrice}</span> / {minGb}GB
-                      </div>
                     </div>
                     <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                       <Clock className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1627,49 +1624,60 @@ export default function ClientPortal() {
                         购买增加流量<strong>每个月的月结日会自动清零重置</strong>，建议按需购买、少量多次。
                       </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-                      <div className="flex-1">
-                        <label className="block text-xs text-muted-foreground mb-1">请输入购买流量 GB（必须为 {minGb} 的倍数，最小 {minGb}GB）</label>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={minGb}
-                          step={minGb}
-                          value={topupGbInput}
-                          onChange={(e) => setTopupGbInput(e.target.value)}
-                          placeholder={`例如 ${minGb}、${minGb * 2}、${minGb * 5}`}
-                          className="w-full border border-input p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-client-primary outline-none"
-                        />
+                    <div className={`grid grid-cols-1 gap-4 ${largeEnabled ? "md:grid-cols-2" : ""}`}>
+                      <div className="flex h-full flex-col rounded-xl border border-client-primary/35 bg-background/70 p-4 dark:border-client-primary/40">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-bold text-client-primary">购买流量</div>
+                          <div className="text-sm text-muted-foreground">单价：<span className="font-bold text-foreground">¥{unitPrice}</span> / {minGb}GB</div>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-muted-foreground mb-1">请输入购买流量 GB（必须为 {minGb} 的倍数，最小 {minGb}GB）</label>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={minGb}
+                            step={minGb}
+                            value={topupGbInput}
+                            onChange={(e) => setTopupGbInput(e.target.value)}
+                            placeholder={`例如 ${minGb}、${minGb * 2}、${minGb * 5}`}
+                            className="w-full border border-client-primary/40 p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-client-primary outline-none"
+                          />
+                          {!gbValid && topupGbInput && !isBlacklisted && (
+                            <p className="text-xs text-destructive mt-2">流量必须为 {minGb} 的倍数，且不少于 {minGb}GB</p>
+                          )}
+                        </div>
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="text-sm">
+                            <div className="text-muted-foreground">应付</div>
+                            <div className="text-2xl font-extrabold text-client-primary">¥{computedAmount.toFixed(2)}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setTopupPurchaseKind("standard");
+                              isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
+                            }}
+                            disabled={(!isTopupBlocked && !gbValid) || uuid === "游客_未登录"}
+                            className="bg-client-primary text-client-primary-foreground font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            购买流量
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground">应付</div>
-                        <div className="text-2xl font-extrabold text-client-primary">¥{computedAmount.toFixed(2)}</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setTopupPurchaseKind("standard");
-                          isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
-                        }}
-                        disabled={(!isTopupBlocked && !gbValid) || uuid === "游客_未登录"}
-                        className="bg-client-primary text-client-primary-foreground font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        购买流量
-                      </button>
-                    </div>
-                    {largeEnabled && (
-                      <div className="mt-4 rounded-xl border border-orange-300/70 bg-gradient-to-r from-orange-50 to-amber-50 p-4 dark:border-orange-500/30 dark:from-orange-500/10 dark:to-amber-500/10">
+                      {largeEnabled && (
+                        <div className="flex h-full flex-col rounded-xl border border-orange-300/70 bg-gradient-to-r from-orange-50 to-amber-50 p-4 dark:border-orange-500/30 dark:from-orange-500/10 dark:to-amber-500/10">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <div className="font-bold text-orange-700 dark:text-orange-300">🔥 大额流量购买 <span className="ml-1 rounded-full bg-orange-500 px-2 py-0.5 text-xs text-white">大额优惠</span></div>
                           <div className="text-sm text-muted-foreground">优惠价：<span className="font-bold text-orange-600 dark:text-orange-300">¥{largeUnitPrice}</span> / {largeMinGb}GB</div>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-                          <div className="flex-1">
+                        <div className="flex-1">
                             <label className="block text-xs text-muted-foreground mb-1">请输入大额购买流量 GB（必须为 {largeMinGb} 的倍数，最小 {largeMinGb}GB）</label>
                             <input type="number" inputMode="numeric" min={largeMinGb} step={largeMinGb}
                               value={largeTopupGbInput} onChange={(e) => setLargeTopupGbInput(e.target.value)}
                               placeholder={`例如 ${largeMinGb}、${largeMinGb * 2}、${largeMinGb * 3}`}
                               className="w-full border border-orange-300 p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-orange-400 outline-none" />
-                          </div>
+                            {!largeGbValid && largeTopupGbInput && !isBlacklisted && <p className="text-xs text-destructive mt-2">大额流量必须为 {largeMinGb} 的倍数，且不少于 {largeMinGb}GB</p>}
+                        </div>
+                        <div className="mt-3 flex items-end justify-between gap-3">
                           <div className="text-sm"><div className="text-muted-foreground">优惠应付</div><div className="text-2xl font-extrabold text-orange-600 dark:text-orange-300">¥{largeComputedAmount.toFixed(2)}</div></div>
                           <button
                             onClick={() => {
@@ -1681,12 +1689,9 @@ export default function ClientPortal() {
                             优惠购买
                           </button>
                         </div>
-                        {!largeGbValid && largeTopupGbInput && !isBlacklisted && <p className="text-xs text-destructive mt-2">大额流量必须为 {largeMinGb} 的倍数，且不少于 {largeMinGb}GB</p>}
-                      </div>
-                    )}
-                    {!gbValid && topupGbInput && !isBlacklisted && (
-                      <p className="text-xs text-destructive mt-2">流量必须为 {minGb} 的倍数，且不少于 {minGb}GB</p>
-                    )}
+                        </div>
+                      )}
+                    </div>
                     {isBlacklisted && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-bold">
                         ⚠️ 您的账户为特殊套餐，无法使用自助流量充值，请联系管理员充值。
