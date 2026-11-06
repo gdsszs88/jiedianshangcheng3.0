@@ -1610,7 +1610,7 @@ export default function ClientPortal() {
                     <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                       <Clock className="mt-0.5 h-4 w-4 shrink-0" />
                       <p>
-                        购买增加的流量<strong>每个月会自动清零</strong>，建议按需购买、少量多次。
+                        购买增加流量<strong>每个月的月结日会自动清零重置</strong>，建议按需购买、少量多次。
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
