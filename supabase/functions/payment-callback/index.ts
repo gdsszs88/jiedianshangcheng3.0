@@ -1371,9 +1371,13 @@ Deno.serve(async (req) => {
             if (!payRes.ok || result.code !== "10000" || !result.qr_code) throw new Error(result.sub_msg || result.msg || `支付宝下单失败 (${payRes.status})`);
             return new Response(JSON.stringify({ success: true, orderId: order.id, tradeNo, payUrl: result.qr_code, qrCode: "" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           } catch (error) {
-            console.error("Official payment create error:", String(error));
-            await supabase.from("orders").update({ status: "failed", notify_data: { error: String(error) } }).eq("id", order.id);
-            return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : "官方支付接口调用失败", orderId: order.id, tradeNo }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            const rawError = error instanceof Error ? error.message : String(error);
+            const friendlyError = /ASN\.1|DER tag|pkcs8|Invalid key/i.test(rawError)
+              ? "支付宝应用私钥格式错误：请填写应用私钥，不要填写应用公钥或支付宝公钥"
+              : rawError || "官方支付接口调用失败";
+            console.error("Official payment create error:", rawError);
+            await supabase.from("orders").update({ status: "failed", notify_data: { error: friendlyError } }).eq("id", order.id);
+            return new Response(JSON.stringify({ success: false, error: friendlyError, orderId: order.id, tradeNo }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
         }
 

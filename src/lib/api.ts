@@ -6,7 +6,17 @@ async function callEdgeFunction(name: string, body?: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke(name, {
     body: body ?? {},
   });
-  if (error) throw error;
+  if (error) {
+    let message = error.message || "请求失败";
+    try {
+      const response = (error as any).context as Response | undefined;
+      if (response) {
+        const payload = await response.json();
+        message = payload?.error || payload?.message || message;
+      }
+    } catch {}
+    throw new Error(message);
+  }
   return data;
 }
 
