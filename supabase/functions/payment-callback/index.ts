@@ -774,9 +774,9 @@ async function decryptWechatResource(resource: any, apiV3Key: string): Promise<a
   return JSON.parse(new TextDecoder().decode(plaintext));
 }
 
-function alipaySignContent(params: Record<string, string>): string {
+function alipaySignContent(params: Record<string, string>, excludeSignType = false): string {
   return Object.keys(params)
-    .filter((key) => key !== "sign" && key !== "sign_type" && params[key] !== "")
+    .filter((key) => key !== "sign" && (!excludeSignType || key !== "sign_type") && params[key] !== "")
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join("&");
@@ -842,7 +842,7 @@ Deno.serve(async (req) => {
         if (!config.official_alipay_enabled || params.app_id !== config.official_alipay_app_id) {
           return new Response("failure", { status: 403, headers: corsHeaders });
         }
-        const valid = await rsaVerifyBase64(alipaySignContent(params), params.sign || "", config.official_alipay_public_key || "");
+        const valid = await rsaVerifyBase64(alipaySignContent(params, true), params.sign || "", config.official_alipay_public_key || "");
         if (!valid) return new Response("failure", { status: 401, headers: corsHeaders });
       } else {
         const rawBody = await req.text();
