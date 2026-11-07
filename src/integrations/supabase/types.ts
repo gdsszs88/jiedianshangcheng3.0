@@ -28,6 +28,17 @@ export type Database = {
           hupi_wechat: boolean
           hupi_wechat_app_id: string | null
           hupi_wechat_app_secret: string | null
+          official_alipay_app_id: string
+          official_alipay_enabled: boolean
+          official_alipay_private_key: string
+          official_alipay_public_key: string
+          official_wechat_api_v3_key: string
+          official_wechat_app_id: string
+          official_wechat_enabled: boolean
+          official_wechat_mch_id: string
+          official_wechat_platform_public_key: string
+          official_wechat_private_key: string
+          official_wechat_serial_no: string
           id: string
           landing_image: string
           notify_email: string
@@ -73,6 +84,17 @@ export type Database = {
           hupi_wechat?: boolean
           hupi_wechat_app_id?: string | null
           hupi_wechat_app_secret?: string | null
+          official_alipay_app_id?: string
+          official_alipay_enabled?: boolean
+          official_alipay_private_key?: string
+          official_alipay_public_key?: string
+          official_wechat_api_v3_key?: string
+          official_wechat_app_id?: string
+          official_wechat_enabled?: boolean
+          official_wechat_mch_id?: string
+          official_wechat_platform_public_key?: string
+          official_wechat_private_key?: string
+          official_wechat_serial_no?: string
           id?: string
           landing_image?: string
           notify_email?: string
@@ -118,6 +140,17 @@ export type Database = {
           hupi_wechat?: boolean
           hupi_wechat_app_id?: string | null
           hupi_wechat_app_secret?: string | null
+          official_alipay_app_id?: string
+          official_alipay_enabled?: boolean
+          official_alipay_private_key?: string
+          official_alipay_public_key?: string
+          official_wechat_api_v3_key?: string
+          official_wechat_app_id?: string
+          official_wechat_enabled?: boolean
+          official_wechat_mch_id?: string
+          official_wechat_platform_public_key?: string
+          official_wechat_private_key?: string
+          official_wechat_serial_no?: string
           id?: string
           landing_image?: string
           notify_email?: string
@@ -806,6 +839,8 @@ export type Database = {
           crypto_usdt: boolean
           hupi_alipay: boolean
           hupi_wechat: boolean
+          official_alipay_enabled: boolean
+          official_wechat_enabled: boolean
           landing_image: string
           price_exclusive_month: number
           price_exclusive_quarter: number

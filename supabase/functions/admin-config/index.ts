@@ -64,6 +64,17 @@ Deno.serve(async (req) => {
         hupiAlipayAppSecret: data.hupi_alipay_app_secret || "",
         hupiWechat: data.hupi_wechat,
         hupiAlipay: data.hupi_alipay,
+        officialWechatEnabled: data.official_wechat_enabled ?? false,
+        officialWechatAppId: data.official_wechat_app_id || "",
+        officialWechatMchId: data.official_wechat_mch_id || "",
+        officialWechatSerialNo: data.official_wechat_serial_no || "",
+        officialWechatPrivateKey: data.official_wechat_private_key || "",
+        officialWechatApiV3Key: data.official_wechat_api_v3_key || "",
+        officialWechatPlatformPublicKey: data.official_wechat_platform_public_key || "",
+        officialAlipayEnabled: data.official_alipay_enabled ?? false,
+        officialAlipayAppId: data.official_alipay_app_id || "",
+        officialAlipayPrivateKey: data.official_alipay_private_key || "",
+        officialAlipayPublicKey: data.official_alipay_public_key || "",
         cryptoAddress: data.crypto_address || "",
         cryptoKey: data.crypto_key || "",
         cryptoUsdt: data.crypto_usdt,
@@ -98,6 +109,24 @@ Deno.serve(async (req) => {
     }
 
     if (action === "save") {
+      if (config.officialWechatEnabled === true) {
+        const requiredWechat = [config.officialWechatAppId, config.officialWechatMchId, config.officialWechatSerialNo, config.officialWechatPrivateKey, config.officialWechatApiV3Key, config.officialWechatPlatformPublicKey];
+        if (requiredWechat.some((value) => !String(value || "").trim()) || new TextEncoder().encode(String(config.officialWechatApiV3Key || "").trim()).length !== 32) {
+          return new Response(JSON.stringify({ error: "开启微信官方支付前，请填写完整配置并确认 API v3 密钥为32字节" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+      if (config.officialAlipayEnabled === true) {
+        const requiredAlipay = [config.officialAlipayAppId, config.officialAlipayPrivateKey, config.officialAlipayPublicKey];
+        if (requiredAlipay.some((value) => !String(value || "").trim())) {
+          return new Response(JSON.stringify({ error: "开启支付宝官方支付前，请填写完整的 AppID、应用私钥和支付宝公钥" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
       const subscriptionDomain = String(config.subscriptionDomain || "dy.ip520.top")
         .trim()
         .toLowerCase()
@@ -133,6 +162,17 @@ Deno.serve(async (req) => {
         hupi_alipay_app_secret: config.hupiAlipayAppSecret,
         hupi_wechat: config.hupiWechat,
         hupi_alipay: config.hupiAlipay,
+        official_wechat_enabled: config.officialWechatEnabled === true,
+        official_wechat_app_id: String(config.officialWechatAppId || "").trim(),
+        official_wechat_mch_id: String(config.officialWechatMchId || "").trim(),
+        official_wechat_serial_no: String(config.officialWechatSerialNo || "").trim(),
+        official_wechat_private_key: String(config.officialWechatPrivateKey || "").trim(),
+        official_wechat_api_v3_key: String(config.officialWechatApiV3Key || "").trim(),
+        official_wechat_platform_public_key: String(config.officialWechatPlatformPublicKey || "").trim(),
+        official_alipay_enabled: config.officialAlipayEnabled === true,
+        official_alipay_app_id: String(config.officialAlipayAppId || "").trim(),
+        official_alipay_private_key: String(config.officialAlipayPrivateKey || "").trim(),
+        official_alipay_public_key: String(config.officialAlipayPublicKey || "").trim(),
         crypto_address: config.cryptoAddress,
         crypto_key: config.cryptoKey,
         crypto_usdt: config.cryptoUsdt,

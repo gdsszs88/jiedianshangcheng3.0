@@ -707,6 +707,81 @@ async function verifyHupiSign(params: Record<string, string>, appSecret: string)
   return expectedHash.toLowerCase() === (params.hash || "").toLowerCase();
 }
 
+function pemBytes(pem: string): Uint8Array {
+  const base64 = String(pem || "").replace(/-----BEGIN [^-]+-----|-----END [^-]+-----|\s+/g, "");
+  const raw = atob(base64);
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+async function importRsaPrivateKey(pem: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey("pkcs8", pemBytes(pem), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+}
+
+async function importRsaPublicKey(pem: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey("spki", pemBytes(pem), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+}
+
+async function rsaSignBase64(content: string, privateKeyPem: string): Promise<string> {
+  const key = await importRsaPrivateKey(privateKeyPem);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(content));
+  return bytesToBase64(new Uint8Array(signature));
+}
+
+async function rsaVerifyBase64(content: string, signature: string, publicKeyPem: string): Promise<boolean> {
+  try {
+    const key = await importRsaPublicKey(publicKeyPem);
+    return await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      key,
+      Uint8Array.from(atob(signature), (char) => char.charCodeAt(0)),
+      new TextEncoder().encode(content),
+    );
+  } catch (error) {
+    console.error("RSA verify failed:", String(error));
+    return false;
+  }
+}
+
+async function wechatAuthorization(method: string, path: string, body: string, mchId: string, serialNo: string, privateKey: string) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const message = `${method}\n${path}\n${timestamp}\n${nonce}\n${body}\n`;
+  const signature = await rsaSignBase64(message, privateKey);
+  return `WECHATPAY2-SHA256-RSA2048 mchid="${mchId}",nonce_str="${nonce}",timestamp="${timestamp}",serial_no="${serialNo}",signature="${signature}"`;
+}
+
+async function decryptWechatResource(resource: any, apiV3Key: string): Promise<any> {
+  if (new TextEncoder().encode(apiV3Key).length !== 32) throw new Error("微信 API v3 密钥必须为32字节");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(apiV3Key), "AES-GCM", false, ["decrypt"]);
+  const plaintext = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: new TextEncoder().encode(resource.nonce),
+      additionalData: new TextEncoder().encode(resource.associated_data || ""),
+      tagLength: 128,
+    },
+    key,
+    Uint8Array.from(atob(resource.ciphertext), (char) => char.charCodeAt(0)),
+  );
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+function alipaySignContent(params: Record<string, string>): string {
+  return Object.keys(params)
+    .filter((key) => key !== "sign" && key !== "sign_type" && params[key] !== "")
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+}
+
 async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
   try {
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -742,27 +817,53 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const source = url.searchParams.get("source"); // "hupi" or "crypto-check"
+    const source = url.searchParams.get("source");
 
-    // === HUPI CALLBACK (POST from Hupi server) ===
-    if (source === "hupi") {
-      const formData = await req.formData();
-      const params: Record<string, string> = {};
-      for (const [key, value] of formData.entries()) {
-        params[key] = String(value);
+    // === PAYMENT CALLBACKS ===
+    if (["hupi", "wechat-official", "alipay-official"].includes(source || "")) {
+      const { data: config } = await supabase.from("admin_config").select("*").limit(1).single();
+      if (!config) return new Response("fail", { status: 500, headers: corsHeaders });
+
+      let params: Record<string, any> = {};
+      let tradeOrderNo = "";
+
+      if (source === "hupi") {
+        const formData = await req.formData();
+        for (const [key, value] of formData.entries()) params[key] = String(value);
+        tradeOrderNo = params.trade_order_id || params.trade_order_no || "";
+        if (params.status !== "OD") return new Response("fail", { headers: corsHeaders });
+      } else if (source === "alipay-official") {
+        const formData = await req.formData();
+        for (const [key, value] of formData.entries()) params[key] = String(value);
+        tradeOrderNo = params.out_trade_no || "";
+        if (!["TRADE_SUCCESS", "TRADE_FINISHED"].includes(params.trade_status || "")) {
+          return new Response("failure", { headers: corsHeaders });
+        }
+        if (!config.official_alipay_enabled || params.app_id !== config.official_alipay_app_id) {
+          return new Response("failure", { status: 403, headers: corsHeaders });
+        }
+        const valid = await rsaVerifyBase64(alipaySignContent(params), params.sign || "", config.official_alipay_public_key || "");
+        if (!valid) return new Response("failure", { status: 401, headers: corsHeaders });
+      } else {
+        const rawBody = await req.text();
+        const timestamp = req.headers.get("Wechatpay-Timestamp") || "";
+        const nonce = req.headers.get("Wechatpay-Nonce") || "";
+        const signature = req.headers.get("Wechatpay-Signature") || "";
+        if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+          return new Response(JSON.stringify({ code: "FAIL", message: "回调时间无效" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const valid = await rsaVerifyBase64(`${timestamp}\n${nonce}\n${rawBody}\n`, signature, config.official_wechat_platform_public_key || "");
+        if (!valid || !config.official_wechat_enabled) {
+          return new Response(JSON.stringify({ code: "FAIL", message: "签名无效" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const notification = JSON.parse(rawBody);
+        params = await decryptWechatResource(notification.resource, config.official_wechat_api_v3_key || "");
+        tradeOrderNo = params.out_trade_no || "";
+        if (params.trade_state !== "SUCCESS" || params.mchid !== config.official_wechat_mch_id || params.appid !== config.official_wechat_app_id) {
+          return new Response(JSON.stringify({ code: "FAIL", message: "交易信息不匹配" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
       }
 
-      console.log("Hupi callback params:", JSON.stringify(params));
-
-      const tradeOrderNo = params.trade_order_id || params.trade_order_no || ""; // Our order ID
-      const status = params.status || "";
-
-      if (status !== "OD") {
-        return new Response("fail", { headers: corsHeaders });
-      }
-
-      // Load the order first so we can verify the callback signature even if
-      // Hupi retries a notification after the order has already been handled.
       const { data: existingOrder, error: orderError } = await supabase
         .from("orders")
         .select("*")
@@ -774,17 +875,18 @@ Deno.serve(async (req) => {
         return new Response("fail", { headers: corsHeaders });
       }
 
-      // Get config for signature verification and panel access
-      const { data: config } = await supabase.from("admin_config").select("*").limit(1).single();
-      if (!config) return new Response("fail", { headers: corsHeaders });
-
-      // Determine which app secret to use
-      const appSecret =
-        existingOrder.payment_method === "wechat" ? config.hupi_wechat_app_secret : config.hupi_alipay_app_secret;
-
-      if (appSecret && !(await verifyHupiSign(params, appSecret))) {
-        console.error("Invalid Hupi signature");
-        return new Response("fail", { headers: corsHeaders });
+      if (source === "hupi") {
+        const appSecret = existingOrder.payment_method === "wechat" ? config.hupi_wechat_app_secret : config.hupi_alipay_app_secret;
+        if (!appSecret || !(await verifyHupiSign(params, appSecret))) {
+          console.error("Invalid Hupi signature or missing secret");
+          return new Response("fail", { status: 401, headers: corsHeaders });
+        }
+      } else if (source === "alipay-official") {
+        if (existingOrder.payment_method !== "alipay_official" || Math.abs(Number(params.total_amount) - Number(existingOrder.amount)) > 0.001) {
+          return new Response("failure", { status: 400, headers: corsHeaders });
+        }
+      } else if (existingOrder.payment_method !== "wechat_official" || Number(params.amount?.total) !== Math.round(Number(existingOrder.amount) * 100)) {
+        return new Response(JSON.stringify({ code: "FAIL", message: "订单金额不匹配" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       // Atomically claim the pending order. If Hupi sends duplicate callbacks
@@ -976,6 +1078,13 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+        const supportedPaymentMethods = new Set(["wechat", "alipay", "wechat_official", "alipay_official", "usdt", "trx"]);
+        if (!supportedPaymentMethods.has(paymentMethod)) {
+          return new Response(JSON.stringify({ error: "不支持的支付方式" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
         if (normalizedOrderType === "renew" || normalizedOrderType === "topup_traffic") {
           const { data: blacklistCfg } = await supabase
@@ -1109,8 +1218,9 @@ Deno.serve(async (req) => {
 
           const appId = paymentMethod === "wechat" ? config.hupi_wechat_app_id : config.hupi_alipay_app_id;
           const appSecret = paymentMethod === "wechat" ? config.hupi_wechat_app_secret : config.hupi_alipay_app_secret;
+          const enabled = paymentMethod === "wechat" ? config.hupi_wechat : config.hupi_alipay;
 
-          if (!appId || !appSecret) {
+          if (!enabled || !appId || !appSecret) {
             return new Response(JSON.stringify({ error: "支付配置未完成" }), {
               status: 500,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1140,14 +1250,10 @@ Deno.serve(async (req) => {
           hupiParams.hash = md5Hex(signStr);
 
           console.log(
-            "Hupi sign debug:",
+            "Hupi payment request prepared:",
             JSON.stringify({
               paymentMethod,
               appId,
-              appSecretLen: appSecret.length,
-              appSecretFirst4: appSecret.substring(0, 4),
-              signStr,
-              computedHash: hupiParams.hash,
             }),
           );
 
@@ -1205,6 +1311,69 @@ Deno.serve(async (req) => {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               },
             );
+          }
+        }
+
+        if (paymentMethod === "wechat_official" || paymentMethod === "alipay_official") {
+          const { data: config } = await supabase.from("admin_config").select("*").limit(1).single();
+          if (!config) {
+            return new Response(JSON.stringify({ error: "系统配置未初始化" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+          try {
+            if (paymentMethod === "wechat_official") {
+              if (!config.official_wechat_enabled || !config.official_wechat_app_id || !config.official_wechat_mch_id || !config.official_wechat_serial_no || !config.official_wechat_private_key || !config.official_wechat_api_v3_key || !config.official_wechat_platform_public_key) {
+                throw new Error("微信官方商户配置未完成");
+              }
+              const path = "/v3/pay/transactions/native";
+              const requestBody = JSON.stringify({
+                appid: config.official_wechat_app_id,
+                mchid: config.official_wechat_mch_id,
+                description: String(finalPlanName).slice(0, 127),
+                out_trade_no: tradeNo,
+                notify_url: `${supabaseUrl}/functions/v1/payment-callback?source=wechat-official`,
+                amount: { total: Math.round(Number(finalAmount) * 100), currency: "CNY" },
+              });
+              const authorization = await wechatAuthorization("POST", path, requestBody, config.official_wechat_mch_id, config.official_wechat_serial_no, config.official_wechat_private_key);
+              const payRes = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+                method: "POST",
+                headers: { Authorization: authorization, Accept: "application/json", "Content-Type": "application/json" },
+                body: requestBody,
+              });
+              const payData = await payRes.json().catch(() => ({}));
+              if (!payRes.ok || !payData.code_url) throw new Error(payData.message || `微信下单失败 (${payRes.status})`);
+              return new Response(JSON.stringify({ success: true, orderId: order.id, tradeNo, payUrl: payData.code_url, qrCode: "" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            if (!config.official_alipay_enabled || !config.official_alipay_app_id || !config.official_alipay_private_key || !config.official_alipay_public_key) {
+              throw new Error("支付宝官方商户配置未完成");
+            }
+            const alipayParams: Record<string, string> = {
+              app_id: config.official_alipay_app_id,
+              method: "alipay.trade.precreate",
+              format: "JSON",
+              charset: "utf-8",
+              sign_type: "RSA2",
+              timestamp: new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date()).replace("T", " "),
+              version: "1.0",
+              notify_url: `${supabaseUrl}/functions/v1/payment-callback?source=alipay-official`,
+              biz_content: JSON.stringify({ out_trade_no: tradeNo, total_amount: Number(finalAmount).toFixed(2), subject: String(finalPlanName).slice(0, 256), timeout_express: "20m" }),
+            };
+            alipayParams.sign = await rsaSignBase64(alipaySignContent(alipayParams), config.official_alipay_private_key);
+            const payRes = await fetch("https://openapi.alipay.com/gateway.do", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+              body: new URLSearchParams(alipayParams).toString(),
+            });
+            const payData = await payRes.json().catch(() => ({}));
+            const result = payData.alipay_trade_precreate_response || {};
+            if (!payRes.ok || result.code !== "10000" || !result.qr_code) throw new Error(result.sub_msg || result.msg || `支付宝下单失败 (${payRes.status})`);
+            return new Response(JSON.stringify({ success: true, orderId: order.id, tradeNo, payUrl: result.qr_code, qrCode: "" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          } catch (error) {
+            console.error("Official payment create error:", String(error));
+            await supabase.from("orders").update({ status: "failed", notify_data: { error: String(error) } }).eq("id", order.id);
+            return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : "官方支付接口调用失败", orderId: order.id, tradeNo }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
         }
 

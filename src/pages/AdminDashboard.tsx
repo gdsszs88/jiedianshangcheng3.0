@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, Server, QrCode, Bitcoin, CheckCircle2, Plus, Trash2, Package, ClipboardList, Search, ChevronLeft, ChevronRight, ShoppingCart, CreditCard, MapPin, ChevronDown, BookOpen, FileText, CalendarDays, WalletCards } from "lucide-react";
+import { Settings, Server, QrCode, Bitcoin, CheckCircle2, ShieldCheck, Plus, Trash2, Package, ClipboardList, Search, ChevronLeft, ChevronRight, ShoppingCart, CreditCard, MapPin, ChevronDown, BookOpen, FileText, CalendarDays, WalletCards } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { getAdminConfig, saveAdminConfig, testPanelConnection, adminGetPlans, adminCreatePlan, adminUpdatePlan, adminDeletePlan, adminGetOrders, adminGetOrderRevenueStats, adminDeleteOrder, adminBatchDeleteOrders, adminGetRegions, adminCreateRegion, adminUpdateRegion, adminDeleteRegion, adminAssignPlanRegion, adminUnassignPlanRegion, adminChangePassword, adminGetTutorials, adminCreateTutorial, adminUpdateTutorial, adminDeleteTutorial, adminGetArticles, adminCreateArticle, adminUpdateArticle, adminDeleteArticle, adminGetRegionInbounds, adminCreateRegionInbound, adminUpdateRegionInbound, adminDeleteRegionInbound, adminAssignInboundPlan, adminUnassignInboundPlan, adminListPanels, adminCreatePanel, adminUpdatePanel, adminSetPrimaryPanel, adminDeletePanel, runAutoResetTraffic, adminListTrafficRules, adminCreateTrafficRule, adminUpdateTrafficRule, adminDeleteTrafficRule } from "@/lib/api";
 import TutorialContentEditor from "@/components/TutorialContentEditor";
@@ -43,6 +43,17 @@ interface AdminConfigData {
   hupiAlipayAppSecret: string;
   hupiWechat: boolean;
   hupiAlipay: boolean;
+  officialWechatEnabled: boolean;
+  officialWechatAppId: string;
+  officialWechatMchId: string;
+  officialWechatSerialNo: string;
+  officialWechatPrivateKey: string;
+  officialWechatApiV3Key: string;
+  officialWechatPlatformPublicKey: string;
+  officialAlipayEnabled: boolean;
+  officialAlipayAppId: string;
+  officialAlipayPrivateKey: string;
+  officialAlipayPublicKey: string;
   cryptoAddress: string;
   cryptoKey: string;
   cryptoUsdt: boolean;
@@ -184,6 +195,17 @@ const defaultConfig: AdminConfigData = {
   hupiAlipayAppSecret: "",
   hupiWechat: true,
   hupiAlipay: true,
+  officialWechatEnabled: false,
+  officialWechatAppId: "",
+  officialWechatMchId: "",
+  officialWechatSerialNo: "",
+  officialWechatPrivateKey: "",
+  officialWechatApiV3Key: "",
+  officialWechatPlatformPublicKey: "",
+  officialAlipayEnabled: false,
+  officialAlipayAppId: "",
+  officialAlipayPrivateKey: "",
+  officialAlipayPublicKey: "",
   cryptoAddress: "",
   cryptoKey: "",
   cryptoUsdt: true,
@@ -1580,6 +1602,45 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* 官方商户支付 */}
+              <div className="bg-card p-6 rounded-2xl shadow-sm border border-border">
+                <h2 className="text-xl font-bold mb-2 flex items-center text-client-primary border-b border-border pb-3">
+                  <ShieldCheck className="w-5 h-5 mr-2" /> 官方商户支付设置
+                </h2>
+                <p className="text-xs text-muted-foreground mb-5">密钥仅保存在 Supabase 后端。请先完成支付宝/微信支付商户签约并开通扫码支付权限。</p>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <div className="bg-muted p-4 rounded-xl border border-success/30">
+                    <label className="flex items-center space-x-2 cursor-pointer mb-3">
+                      <input type="checkbox" checked={config.officialWechatEnabled} onChange={e => setConfig({ ...config, officialWechatEnabled: e.target.checked })} className="w-5 h-5 rounded" />
+                      <span className="font-bold">开启微信支付官方商户（Native）</span>
+                    </label>
+                    {config.officialWechatEnabled && <div className="space-y-3 animate-fade-in">
+                      <input value={config.officialWechatAppId} onChange={e => setConfig({ ...config, officialWechatAppId: e.target.value })} placeholder="公众号/应用 AppID" className="w-full border border-input p-2 rounded-lg bg-background text-sm" />
+                      <input value={config.officialWechatMchId} onChange={e => setConfig({ ...config, officialWechatMchId: e.target.value })} placeholder="微信支付商户号 mchid" className="w-full border border-input p-2 rounded-lg bg-background text-sm" />
+                      <input value={config.officialWechatSerialNo} onChange={e => setConfig({ ...config, officialWechatSerialNo: e.target.value })} placeholder="商户 API 证书序列号" className="w-full border border-input p-2 rounded-lg bg-background text-sm" />
+                      <input type="password" value={config.officialWechatApiV3Key} onChange={e => setConfig({ ...config, officialWechatApiV3Key: e.target.value })} placeholder="API v3 密钥（32位）" className="w-full border border-input p-2 rounded-lg bg-background text-sm" />
+                      <textarea rows={4} value={config.officialWechatPrivateKey} onChange={e => setConfig({ ...config, officialWechatPrivateKey: e.target.value })} placeholder="商户私钥 PEM（-----BEGIN PRIVATE KEY-----）" className="w-full border border-input p-2 rounded-lg bg-background text-xs font-mono" />
+                      <textarea rows={4} value={config.officialWechatPlatformPublicKey} onChange={e => setConfig({ ...config, officialWechatPlatformPublicKey: e.target.value })} placeholder="微信支付公钥/平台证书公钥 PEM（用于回调验签）" className="w-full border border-input p-2 rounded-lg bg-background text-xs font-mono" />
+                    </div>}
+                  </div>
+                  <div className="bg-muted p-4 rounded-xl border border-accent/30">
+                    <label className="flex items-center space-x-2 cursor-pointer mb-3">
+                      <input type="checkbox" checked={config.officialAlipayEnabled} onChange={e => setConfig({ ...config, officialAlipayEnabled: e.target.checked })} className="w-5 h-5 rounded" />
+                      <span className="font-bold">开启支付宝官方商户（当面付）</span>
+                    </label>
+                    {config.officialAlipayEnabled && <div className="space-y-3 animate-fade-in">
+                      <input value={config.officialAlipayAppId} onChange={e => setConfig({ ...config, officialAlipayAppId: e.target.value })} placeholder="支付宝开放平台 AppID" className="w-full border border-input p-2 rounded-lg bg-background text-sm" />
+                      <textarea rows={5} value={config.officialAlipayPrivateKey} onChange={e => setConfig({ ...config, officialAlipayPrivateKey: e.target.value })} placeholder="应用私钥 PEM（RSA2）" className="w-full border border-input p-2 rounded-lg bg-background text-xs font-mono" />
+                      <textarea rows={5} value={config.officialAlipayPublicKey} onChange={e => setConfig({ ...config, officialAlipayPublicKey: e.target.value })} placeholder="支付宝公钥 PEM（不是应用公钥，用于回调验签）" className="w-full border border-input p-2 rounded-lg bg-background text-xs font-mono" />
+                    </div>}
+                  </div>
+                </div>
+                <button onClick={() => handleSave("officialPayment")} disabled={!!btnStatus.officialPayment}
+                  className="mt-4 w-full bg-client-primary text-client-primary-foreground py-3 rounded-lg font-bold hover:opacity-90 transition-colors shadow-md flex justify-center items-center disabled:opacity-70">
+                  <CheckCircle2 className="w-5 h-5 mr-2" /> {btnStatus.officialPayment || "保存官方支付配置"}
+                </button>
+              </div>
+
               {/* 虚拟货币 */}
               <div className="bg-card p-6 rounded-2xl shadow-sm border border-border">
                 <h2 className="text-xl font-bold mb-6 flex items-center text-accent border-b border-border pb-3">
@@ -2381,10 +2442,14 @@ export default function AdminDashboard() {
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                 order.payment_method === "wechat" ? "bg-success/10 text-success" :
                                 order.payment_method === "alipay" ? "bg-primary/10 text-primary" :
+                                order.payment_method === "wechat_official" ? "bg-success/10 text-success" :
+                                order.payment_method === "alipay_official" ? "bg-primary/10 text-primary" :
                                 "bg-accent/10 text-accent"
                               }`}>
                                 {order.payment_method === "wechat" ? "微信" :
                                  order.payment_method === "alipay" ? "支付宝" :
+                                 order.payment_method === "wechat_official" ? "微信官方" :
+                                 order.payment_method === "alipay_official" ? "支付宝官方" :
                                  order.payment_method === "crypto_usdt" ? "USDT" :
                                  order.payment_method === "crypto_trx" ? "TRX" : order.payment_method}
                               </span>

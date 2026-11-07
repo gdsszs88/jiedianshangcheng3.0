@@ -94,6 +94,8 @@ interface PublicConfig {
   price_shared_year: number;
   hupi_wechat: boolean;
   hupi_alipay: boolean;
+  official_wechat_enabled?: boolean;
+  official_alipay_enabled?: boolean;
   crypto_usdt: boolean;
   crypto_trx: boolean;
   crypto_address: string | null;
@@ -2384,6 +2386,7 @@ export default function ClientPortal() {
                           >
                             <Smartphone className="w-8 h-8 mb-2 text-success" />
                             <span className="font-bold">微信支付</span>
+                            <span className="text-[11px] text-muted-foreground">虎皮椒</span>
                           </button>
                         )}
                         {config.hupi_alipay && (
@@ -2393,6 +2396,27 @@ export default function ClientPortal() {
                           >
                             <Smartphone className="w-8 h-8 mb-2 text-accent" />
                             <span className="font-bold">支付宝</span>
+                            <span className="text-[11px] text-muted-foreground">虎皮椒</span>
+                          </button>
+                        )}
+                        {config.official_wechat_enabled && (
+                          <button
+                            onClick={() => setSelectedMethod("wechat_official")}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${selectedMethod === "wechat_official" ? "border-success bg-success/10 text-success" : "border-border hover:border-success/50"}`}
+                          >
+                            <Smartphone className="w-8 h-8 mb-2 text-success" />
+                            <span className="font-bold">微信支付</span>
+                            <span className="text-[11px] text-muted-foreground">官方商户</span>
+                          </button>
+                        )}
+                        {config.official_alipay_enabled && (
+                          <button
+                            onClick={() => setSelectedMethod("alipay_official")}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${selectedMethod === "alipay_official" ? "border-accent bg-accent/10 text-accent" : "border-border hover:border-accent/50"}`}
+                          >
+                            <Smartphone className="w-8 h-8 mb-2 text-accent" />
+                            <span className="font-bold">支付宝</span>
+                            <span className="text-[11px] text-muted-foreground">官方商户</span>
                           </button>
                         )}
                         {config.crypto_usdt && (
@@ -2563,12 +2587,16 @@ export default function ClientPortal() {
                               alt="支付二维码"
                               className="w-48 h-48 mx-auto mb-4 rounded-xl border border-border"
                             />
+                          ) : payUrl ? (
+                            <div className="w-48 h-48 mx-auto mb-4 rounded-xl border border-border bg-white p-2 flex items-center justify-center">
+                              <QRCodeSVG value={payUrl} size={176} level="H" />
+                            </div>
                           ) : (
                             <div className="w-48 h-48 bg-muted border border-border mx-auto rounded-xl flex items-center justify-center mb-4">
                               <QrCode className="w-12 h-12 text-muted-foreground" />
                             </div>
                           )}
-                          {selectedMethod === "alipay" && payUrl && (
+                          {["alipay", "alipay_official"].includes(selectedMethod) && payUrl && (
                             <div className="mb-4">
                               <a
                                 href={payUrl}
@@ -2581,7 +2609,7 @@ export default function ClientPortal() {
                             </div>
                           )}
                           <p className="text-muted-foreground font-bold mb-2">
-                            请使用 {selectedMethod === "wechat" ? "微信" : "支付宝"} 扫码付款 ¥{checkoutData.price}
+                            请使用 {selectedMethod.includes("wechat") ? "微信" : "支付宝"} 扫码付款 ¥{checkoutData.price}
                           </p>
                           <p className="text-xs text-muted-foreground">支付完成后系统将自动确认，请勿关闭此页面</p>
                         </div>
@@ -2649,6 +2677,10 @@ export default function ClientPortal() {
                               ? "微信"
                               : order.payment_method === "alipay"
                                 ? "支付宝"
+                                : order.payment_method === "wechat_official"
+                                  ? "微信官方"
+                                  : order.payment_method === "alipay_official"
+                                    ? "支付宝官方"
                                 : order.payment_method?.toUpperCase()}
                           </span>
                         </div>
