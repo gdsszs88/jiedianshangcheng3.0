@@ -1120,8 +1120,29 @@ export default function ClientPortal() {
       alert("购买开通必须填写邮箱/手机号，方便后续查单找回");
       return;
     }
-    if (checkoutData.type === "buy_new" && !(await ensureBuyNewInboundAvailable())) {
-      return;
+    if (checkoutData.type === "buy_new") {
+      flushSync(() => {
+        setOrderCreating(true);
+        setInboundMatching(true);
+        setPayStatus("matching_inbound");
+      });
+      const matchingStartedAt = Date.now();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      let available = false;
+      try {
+        available = await ensureBuyNewInboundAvailable();
+      } catch {
+        setError("匹配可用订阅链接失败，请稍后重试");
+      }
+      const remainingDisplayTime = 1000 - (Date.now() - matchingStartedAt);
+      if (remainingDisplayTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingDisplayTime));
+      }
+      setInboundMatching(false);
+      if (!available) {
+        setOrderCreating(false);
+        return;
+      }
     }
     setOrderCreating(true);
     setPayStatus("creating");
