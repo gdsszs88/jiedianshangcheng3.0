@@ -872,7 +872,14 @@ export default function ClientPortal() {
     if (checkoutData.type === "buy_new") {
       setOrderCreating(true);
       setPayStatus("matching_inbound");
+      const matchingStartedAt = Date.now();
+      // Yield once so React paints the matching state before network checks start.
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const available = await ensureBuyNewInboundAvailable();
+      const remainingDisplayTime = 1000 - (Date.now() - matchingStartedAt);
+      if (remainingDisplayTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingDisplayTime));
+      }
       if (!available) {
         setOrderCreating(false);
         return;
@@ -2164,6 +2171,16 @@ export default function ClientPortal() {
               </div>
 
               {/* Status banners */}
+              {payStatus === "matching_inbound" && (
+                <div className="bg-client-primary/10 border border-client-primary/30 p-6 rounded-2xl text-center mb-6 overflow-hidden relative">
+                  <div className="animate-spin w-10 h-10 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-4" />
+                  <h3 className="text-xl font-bold mb-2">正在匹配可用订阅链接...</h3>
+                  <p className="text-muted-foreground text-sm">正在检查该联系方式已开通节点的有效期，请稍候</p>
+                  <div className="h-1 bg-client-primary/15 rounded-full mt-4 overflow-hidden">
+                    <div className="h-full w-1/2 bg-client-primary rounded-full animate-pulse" />
+                  </div>
+                </div>
+              )}
               {payStatus === "creating_client" && (
                 <div className="bg-client-primary/10 border border-client-primary/20 p-6 rounded-2xl text-center mb-6">
                   <div className="animate-spin w-10 h-10 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-4" />
