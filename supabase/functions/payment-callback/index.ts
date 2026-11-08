@@ -1233,6 +1233,47 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Validate buy-new inventory on the server before accepting payment.
+        // The browser performs the same check, but callbacks and stale frontend
+        // deployments must never allow payment for an order that cannot be fulfilled.
+        if (normalizedOrderType === "buy_new") {
+          if (!planId || !regionId || !email) {
+            return new Response(JSON.stringify({ error: "购买开通缺少套餐、地区或联系方式，请刷新页面后重试" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          const { data: mappings } = await supabase
+            .from("inbound_plans")
+            .select("region_inbound_id")
+            .eq("plan_id", planId);
+          const mappedIds = (mappings || []).map((item: any) => item.region_inbound_id);
+          const { data: candidates } = mappedIds.length > 0
+            ? await supabase
+              .from("region_inbounds")
+              .select("id, inbound_id, current_clients, max_clients")
+              .in("id", mappedIds)
+              .eq("region_id", regionId)
+            : { data: [] };
+          const { data: previousOrders } = await supabase
+            .from("orders")
+            .select("inbound_id")
+            .eq("email", email)
+            .eq("status", "fulfilled")
+            .not("inbound_id", "is", null);
+          const usedInboundIds = new Set((previousOrders || []).map((item: any) => Number(item.inbound_id)));
+          const hasCapacity = (candidates || []).some((item: any) =>
+            !usedInboundIds.has(Number(item.inbound_id)) &&
+            (!item.max_clients || item.max_clients <= 0 || Number(item.current_clients || 0) < Number(item.max_clients))
+          );
+          if (!hasCapacity) {
+            return new Response(JSON.stringify({ error: "该联系方式在当前地区/套餐已没有可分配的新入站，请选择其他地区或联系客服补货" }), {
+              status: 409,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        }
+
         // === SERVER-SIDE VALIDATION & PRICING FOR TOPUP_TRAFFIC ===
         let finalAmount = amount;
         let finalPlanName = planName;
