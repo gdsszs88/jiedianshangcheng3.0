@@ -103,8 +103,18 @@ interface PublicConfig {
   topup_price?: number;
   topup_large_min_gb?: number;
   topup_large_price?: number;
+  topup_packages?: TopupPackage[];
   topup_blacklist?: string;
   subscription_domain?: string;
+}
+
+interface TopupPackage {
+  id: string;
+  title: string;
+  minGb: number;
+  price: number;
+  priceLabel?: string;
+  style?: "primary" | "orange";
 }
 
 interface ClientData {
@@ -297,9 +307,8 @@ export default function ClientPortal() {
   const [tutorials, setTutorials] = useState<{ id: string; title: string; content: string; sort_order: number }[]>([]);
   const [announcement, setAnnouncement] = useState<string>("");
   const [expandedTutorialId, setExpandedTutorialId] = useState<string | null>(null);
-  const [topupGbInput, setTopupGbInput] = useState<string>("");
-  const [largeTopupGbInput, setLargeTopupGbInput] = useState<string>("");
-  const [topupPurchaseKind, setTopupPurchaseKind] = useState<"standard" | "large">("standard");
+  const [topupInputs, setTopupInputs] = useState<Record<string, string>>({});
+  const [selectedTopupPackage, setSelectedTopupPackage] = useState<TopupPackage | null>(null);
   const [topupConfirmOpen, setTopupConfirmOpen] = useState(false);
   const [topupBlockedOpen, setTopupBlockedOpen] = useState(false);
   const [topupBlockedReason, setTopupBlockedReason] = useState<"blacklist" | "expired">("blacklist");
@@ -369,10 +378,8 @@ export default function ClientPortal() {
     getPublicConfig()
       .then((c: any) => {
         setConfig(c);
-        const min = Number(c?.topup_min_gb || 0);
-        if (min > 0) setTopupGbInput(String(min));
-        const largeMin = Number(c?.topup_large_min_gb || 0);
-        if (largeMin > 0) setLargeTopupGbInput(String(largeMin));
+        const packages = Array.isArray(c?.topup_packages) ? c.topup_packages.filter((item: any) => item?.id && Number(item?.minGb) > 0 && Number(item?.price) > 0) : [];
+        setTopupInputs(Object.fromEntries(packages.map((item: any) => [String(item.id), String(item.minGb)])));
       })
       .catch(() => {});
     getPlans()
@@ -897,6 +904,7 @@ export default function ClientPortal() {
         paymentMethod: method,
         ...(checkoutData.type === "buy_new" || checkoutData.type === "topup_traffic" ? { orderType: checkoutData.type } : {}),
         ...(checkoutData.type === "topup_traffic" ? { gb: (checkoutData.months || 0) } : {}),
+        ...(checkoutData.type === "topup_traffic" && checkoutData.planId ? { topupPackageId: checkoutData.planId } : {}),
         cryptoAmount: computedPrice,
         cryptoCurrency: method.toUpperCase(),
         ...(checkoutEmail.trim() ? { email: checkoutEmail.trim() } : {}),
@@ -1110,6 +1118,7 @@ export default function ClientPortal() {
         paymentMethod: selectedMethod,
         orderType: checkoutData.type === "buy_new" ? "buy_new" : checkoutData.type === "topup_traffic" ? "topup_traffic" : "renew",
         ...(checkoutData.type === "topup_traffic" ? { gb: (checkoutData.months || 0) } : {}),
+        ...(checkoutData.type === "topup_traffic" && checkoutData.planId ? { topupPackageId: checkoutData.planId } : {}),
         ...(isCrypto ? { cryptoAmount: cryptoPrice, cryptoCurrency: selectedMethod.toUpperCase() } : {}),
         ...(checkoutEmail.trim() ? { email: checkoutEmail.trim() } : {}),
       });
@@ -1591,20 +1600,11 @@ export default function ClientPortal() {
 
               {/* 购买流量包 */}
               {(() => {
-                const minGb = Number(config?.topup_min_gb || 0);
-                const unitPrice = Number(config?.topup_price || 0);
-                const largeMinGb = Number(config?.topup_large_min_gb || 0);
-                const largeUnitPrice = Number(config?.topup_large_price || 0);
-                const largeEnabled = largeMinGb > 0 && largeUnitPrice > 0;
-                if (!minGb || minGb <= 0 || !unitPrice || unitPrice <= 0 || !clientDataLoaded) return null;
-                const gbNum = Number(topupGbInput);
-                const gbValid = Number.isFinite(gbNum) && Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
-                const computedAmount = gbValid ? Number((unitPrice * (gbNum / minGb)).toFixed(2)) : 0;
-                const largeGbNum = Number(largeTopupGbInput);
-                const largeGbValid = largeEnabled && Number.isFinite(largeGbNum) && Number.isInteger(largeGbNum) && largeGbNum >= largeMinGb && largeGbNum % largeMinGb === 0;
-                const largeComputedAmount = largeGbValid ? Number((largeUnitPrice * (largeGbNum / largeMinGb)).toFixed(2)) : 0;
-                const selectedGb = topupPurchaseKind === "large" ? largeGbNum : gbNum;
-                const selectedAmount = topupPurchaseKind === "large" ? largeComputedAmount : computedAmount;
+                const packages = (config?.topup_packages || []).filter((item) => item?.id && Number(item.minGb) > 0 && Number(item.price) > 0);
+                if (!packages.length || !clientDataLoaded) return null;
+                const selectedGb = selectedTopupPackage ? Number(topupInputs[selectedTopupPackage.id] || 0) : 0;
+                const selectedValid = !!selectedTopupPackage && Number.isInteger(selectedGb) && selectedGb >= selectedTopupPackage.minGb && selectedGb % selectedTopupPackage.minGb === 0;
+                const selectedAmount = selectedValid && selectedTopupPackage ? Number((selectedTopupPackage.price * (selectedGb / selectedTopupPackage.minGb)).toFixed(2)) : 0;
                 const isBlacklisted = isTopupBlockedByBlacklist;
                 const isExpired = clientData.expiryDate > 0 && clientData.expiryDate <= nowTick;
                 const isTopupBlocked = isBlacklisted || isExpired;
@@ -1626,73 +1626,36 @@ export default function ClientPortal() {
                         购买增加流量<strong>每个月的月结日会自动清零重置</strong>，建议按需购买、少量多次。
                       </p>
                     </div>
-                    <div className={`grid grid-cols-1 gap-4 ${largeEnabled ? "md:grid-cols-2" : ""}`}>
-                      <div className="flex h-full flex-col rounded-xl border border-client-primary/35 bg-background/70 p-4 dark:border-client-primary/40">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-bold text-client-primary">购买流量</div>
-                          <div className="text-sm text-muted-foreground">单价：<span className="font-bold text-foreground">¥{unitPrice}</span> / {minGb}GB</div>
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-xs text-muted-foreground mb-1">请输入购买流量 GB（必须为 {minGb} 的倍数，最小 {minGb}GB）</label>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={minGb}
-                            step={minGb}
-                            value={topupGbInput}
-                            onChange={(e) => setTopupGbInput(e.target.value)}
-                            placeholder={`例如 ${minGb}、${minGb * 2}、${minGb * 5}`}
-                            className="w-full border border-client-primary/40 p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-client-primary outline-none"
-                          />
-                          {!gbValid && topupGbInput && !isBlacklisted && (
-                            <p className="text-xs text-destructive mt-2">流量必须为 {minGb} 的倍数，且不少于 {minGb}GB</p>
-                          )}
-                        </div>
-                        <div className="mt-3 flex items-end justify-between gap-3">
-                          <div className="text-sm">
-                            <div className="text-muted-foreground">应付</div>
-                            <div className="text-2xl font-extrabold text-client-primary">¥{computedAmount.toFixed(2)}</div>
+                    <div className={`grid grid-cols-1 gap-4 ${packages.length > 1 ? "md:grid-cols-2" : ""}`}>
+                      {packages.map((pkg) => {
+                        const gb = Number(topupInputs[pkg.id] || 0);
+                        const valid = Number.isInteger(gb) && gb >= pkg.minGb && gb % pkg.minGb === 0;
+                        const amount = valid ? Number((pkg.price * (gb / pkg.minGb)).toFixed(2)) : 0;
+                        const orange = pkg.style === "orange";
+                        return <div key={pkg.id} className={`flex h-full flex-col rounded-xl border p-4 ${orange ? "border-orange-300/70 bg-gradient-to-r from-orange-50 to-amber-50 dark:border-orange-500/30 dark:from-orange-500/10 dark:to-amber-500/10" : "border-client-primary/35 bg-background/70 dark:border-client-primary/40"}`}>
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className={`font-bold ${orange ? "text-orange-700 dark:text-orange-300" : "text-client-primary"}`}>{pkg.title || "流量包"}</div>
+                            {pkg.priceLabel?.trim() && <div className={`text-sm font-semibold ${orange ? "text-orange-600 dark:text-orange-300" : "text-muted-foreground"}`}>{pkg.priceLabel}</div>}
                           </div>
-                          <button
-                            onClick={() => {
-                              setTopupPurchaseKind("standard");
+                          <div className="flex-1">
+                            <label className="block text-xs text-muted-foreground mb-1">请输入购买流量 GB（必须为 {pkg.minGb} 的倍数，最小 {pkg.minGb}GB）</label>
+                            <input type="number" inputMode="numeric" min={pkg.minGb} step={pkg.minGb}
+                              value={topupInputs[pkg.id] || ""}
+                              onChange={(e) => setTopupInputs((prev) => ({ ...prev, [pkg.id]: e.target.value }))}
+                              placeholder={`例如 ${pkg.minGb}、${pkg.minGb * 2}、${pkg.minGb * 3}`}
+                              className={`w-full border p-2.5 rounded-lg bg-background outline-none ${orange ? "border-orange-300 focus:ring-2 focus:ring-orange-400" : "border-client-primary/40 focus:ring-2 focus:ring-client-primary"}`} />
+                            {!valid && topupInputs[pkg.id] && !isBlacklisted && <p className="text-xs text-destructive mt-2">流量必须为 {pkg.minGb} 的倍数，且不少于 {pkg.minGb}GB</p>}
+                          </div>
+                          <div className="mt-3 flex items-end justify-between gap-3">
+                            <div className="text-sm"><div className="text-muted-foreground">应付</div><div className={`text-2xl font-extrabold ${orange ? "text-orange-600 dark:text-orange-300" : "text-client-primary"}`}>¥{amount.toFixed(2)}</div></div>
+                            <button onClick={() => {
+                              setSelectedTopupPackage(pkg);
                               isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
-                            }}
-                            disabled={(!isTopupBlocked && !gbValid) || uuid === "游客_未登录"}
-                            className="bg-client-primary text-client-primary-foreground font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            购买流量
-                          </button>
-                        </div>
-                      </div>
-                      {largeEnabled && (
-                        <div className="flex h-full flex-col rounded-xl border border-orange-300/70 bg-gradient-to-r from-orange-50 to-amber-50 p-4 dark:border-orange-500/30 dark:from-orange-500/10 dark:to-amber-500/10">
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-bold text-orange-700 dark:text-orange-300">🔥 大额流量购买 <span className="ml-1 rounded-full bg-orange-500 px-2 py-0.5 text-xs text-white">大额优惠</span></div>
-                          <div className="text-sm text-muted-foreground">优惠价：<span className="font-bold text-orange-600 dark:text-orange-300">¥{largeUnitPrice}</span> / {largeMinGb}GB</div>
-                        </div>
-                        <div className="flex-1">
-                            <label className="block text-xs text-muted-foreground mb-1">请输入大额购买流量 GB（必须为 {largeMinGb} 的倍数，最小 {largeMinGb}GB）</label>
-                            <input type="number" inputMode="numeric" min={largeMinGb} step={largeMinGb}
-                              value={largeTopupGbInput} onChange={(e) => setLargeTopupGbInput(e.target.value)}
-                              placeholder={`例如 ${largeMinGb}、${largeMinGb * 2}、${largeMinGb * 3}`}
-                              className="w-full border border-orange-300 p-2.5 rounded-lg bg-background focus:ring-2 focus:ring-orange-400 outline-none" />
-                            {!largeGbValid && largeTopupGbInput && !isBlacklisted && <p className="text-xs text-destructive mt-2">大额流量必须为 {largeMinGb} 的倍数，且不少于 {largeMinGb}GB</p>}
-                        </div>
-                        <div className="mt-3 flex items-end justify-between gap-3">
-                          <div className="text-sm"><div className="text-muted-foreground">优惠应付</div><div className="text-2xl font-extrabold text-orange-600 dark:text-orange-300">¥{largeComputedAmount.toFixed(2)}</div></div>
-                          <button
-                            onClick={() => {
-                              setTopupPurchaseKind("large");
-                              isTopupBlocked ? openTopupBlocked(isExpired ? "expired" : "blacklist") : setTopupConfirmOpen(true);
-                            }}
-                            disabled={(!isTopupBlocked && !largeGbValid) || uuid === "游客_未登录"}
-                            className="bg-orange-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-orange-600 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                            优惠购买
-                          </button>
-                        </div>
-                        </div>
-                      )}
+                            }} disabled={(!isTopupBlocked && !valid) || uuid === "游客_未登录"}
+                              className={`text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${orange ? "bg-orange-500 hover:bg-orange-600" : "bg-client-primary text-client-primary-foreground hover:opacity-90"}`}>购买流量</button>
+                          </div>
+                        </div>;
+                      })}
                     </div>
                     {isBlacklisted && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-bold">
@@ -1710,7 +1673,7 @@ export default function ClientPortal() {
                         <div className="bg-card max-w-md w-full p-6 rounded-2xl shadow-2xl border border-border" onClick={(e) => e.stopPropagation()}>
                           <h3 className="text-lg font-bold mb-3">确认购买流量包</h3>
                           <p className="text-muted-foreground mb-2">
-                            确认购买 <span className="font-bold text-foreground">{selectedGb}GB</span> {topupPurchaseKind === "large" ? "大额优惠流量包" : "流量包"}？
+                            确认购买 <span className="font-bold text-foreground">{selectedGb}GB</span>「{selectedTopupPackage?.title || "流量包"}」？
                           </p>
                           <p className="text-muted-foreground mb-5">
                             应付金额：<span className="font-bold text-client-primary">¥{selectedAmount.toFixed(2)}</span>
@@ -1725,7 +1688,7 @@ export default function ClientPortal() {
                             <button
                               onClick={() => {
                                 setTopupConfirmOpen(false);
-                                initiateCheckout(selectedGb, selectedAmount, `${topupPurchaseKind === "large" ? "大额优惠流量充值" : "流量充值"} ${selectedGb}GB`, "topup_traffic", null, 0);
+                                if (selectedTopupPackage && selectedValid) initiateCheckout(selectedGb, selectedAmount, `${selectedTopupPackage.title || "流量充值"} ${selectedGb}GB`, "topup_traffic", null, 0, selectedTopupPackage.id);
                               }}
                               className="px-4 py-2 rounded-lg bg-client-primary text-client-primary-foreground text-sm font-bold hover:opacity-90"
                             >

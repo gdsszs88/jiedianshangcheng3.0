@@ -1134,7 +1134,7 @@ Deno.serve(async (req) => {
       const { action } = body;
 
       if (action === "create-order") {
-        const { uuid, planName, months, durationDays, amount, paymentMethod, orderType, cryptoAmount, cryptoCurrency, email, gb } = body;
+        const { uuid, planName, months, durationDays, amount, paymentMethod, orderType, cryptoAmount, cryptoCurrency, email, gb, topupPackageId } = body;
         const normalizedOrderType =
           orderType === "topup_traffic" || gb !== undefined || String(planName || "").includes("流量充值")
             ? "topup_traffic"
@@ -1191,22 +1191,27 @@ Deno.serve(async (req) => {
           const gbNum = Number(gb);
           const { data: cfg } = await supabase
             .from("admin_config")
-            .select("topup_min_gb, topup_price, topup_large_min_gb, topup_large_price")
+            .select("topup_min_gb, topup_price, topup_large_min_gb, topup_large_price, topup_packages")
             .limit(1)
             .maybeSingle();
           const minGb = Number(cfg?.topup_min_gb || 0);
           const unitPrice = Number(cfg?.topup_price || 0);
           const largeMinGb = Number(cfg?.topup_large_min_gb || 0);
           const largeUnitPrice = Number(cfg?.topup_large_price || 0);
-          if (!minGb || minGb <= 0 || !unitPrice || unitPrice <= 0) {
+          const packages = Array.isArray(cfg?.topup_packages) ? cfg.topup_packages : [];
+          const selectedPackage = packages.find((item: any) => String(item?.id || "") === String(topupPackageId || ""));
+          if ((!minGb || minGb <= 0 || !unitPrice || unitPrice <= 0) && !selectedPackage) {
             return new Response(JSON.stringify({ error: "流量充值未配置，请联系管理员" }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
-          const standardTierValid = Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
+          const packageMinGb = Number(selectedPackage?.minGb || 0);
+          const packagePrice = Number(selectedPackage?.price || 0);
+          const packageTierValid = !!selectedPackage && packageMinGb > 0 && packagePrice > 0 && Number.isInteger(gbNum) && gbNum >= packageMinGb && gbNum % packageMinGb === 0;
+          const standardTierValid = minGb > 0 && unitPrice > 0 && Number.isInteger(gbNum) && gbNum >= minGb && gbNum % minGb === 0;
           const largeTierValid = largeMinGb > 0 && largeUnitPrice > 0 && Number.isInteger(gbNum) && gbNum >= largeMinGb && gbNum % largeMinGb === 0;
-          if (!gbNum || (!standardTierValid && !largeTierValid)) {
+          if (!gbNum || (selectedPackage ? !packageTierValid : (!standardTierValid && !largeTierValid))) {
             const tierHint = largeMinGb > 0 && largeUnitPrice > 0
               ? `，或按大额优惠档位 ${largeMinGb}GB 的倍数购买`
               : "";
@@ -1236,11 +1241,11 @@ Deno.serve(async (req) => {
           }
 
           // Always recompute server-side. Exact large-tier multiples receive the configured discount.
-          const useLargeTier = largeTierValid;
-          finalAmount = Number((useLargeTier
-            ? largeUnitPrice * (gbNum / largeMinGb)
-            : unitPrice * (gbNum / minGb)).toFixed(2));
-          finalPlanName = `流量充值 ${gbNum}GB`;
+          const useLargeTier = !selectedPackage && largeTierValid;
+          finalAmount = Number((selectedPackage
+            ? packagePrice * (gbNum / packageMinGb)
+            : useLargeTier ? largeUnitPrice * (gbNum / largeMinGb) : unitPrice * (gbNum / minGb)).toFixed(2));
+          finalPlanName = `${selectedPackage?.title || "流量充值"} ${gbNum}GB`;
           finalMonths = gbNum; // store actual GB in months field
           finalDurationDays = 0;
           if (cryptoAmount && Number(amount) > 0) {

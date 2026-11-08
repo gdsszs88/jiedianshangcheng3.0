@@ -67,6 +67,7 @@ export type Database = {
           topup_large_min_gb: number
           topup_large_price: number
           topup_min_gb: number
+          topup_packages: Json
           topup_price: number
           updated_at: string
           video_embed: string
@@ -123,6 +124,7 @@ export type Database = {
           topup_large_min_gb?: number
           topup_large_price?: number
           topup_min_gb?: number
+          topup_packages?: Json
           topup_price?: number
           updated_at?: string
           video_embed?: string
@@ -179,6 +181,7 @@ export type Database = {
           topup_large_min_gb?: number
           topup_large_price?: number
           topup_min_gb?: number
+          topup_packages?: Json
           topup_price?: number
           updated_at?: string
           video_embed?: string
@@ -858,6 +861,7 @@ export type Database = {
           topup_large_min_gb: number
           topup_large_price: number
           topup_min_gb: number
+          topup_packages: Json
           topup_price: number
           subscription_domain: string
           video_embed: string

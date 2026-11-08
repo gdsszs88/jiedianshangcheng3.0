@@ -72,8 +72,18 @@ interface AdminConfigData {
   topupPrice: number;
   topupLargeMinGb: number;
   topupLargePrice: number;
+  topupPackages: TopupPackageConfig[];
   topupBlacklist: string;
   subscriptionDomain: string;
+}
+
+interface TopupPackageConfig {
+  id: string;
+  title: string;
+  minGb: number;
+  price: number;
+  priceLabel: string;
+  style: "primary" | "orange";
 }
 
 interface Plan {
@@ -224,6 +234,7 @@ const defaultConfig: AdminConfigData = {
   topupPrice: 0,
   topupLargeMinGb: 0,
   topupLargePrice: 0,
+  topupPackages: [],
   topupBlacklist: "",
   subscriptionDomain: "dy.ip520.top",
 };
@@ -1734,7 +1745,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <h3 className="font-bold text-base flex items-center"><Package className="w-4 h-4 mr-2" /> 📊 流量充值配置</h3>
-                    <p className="text-xs text-muted-foreground mt-1">设置普通购买与大额优惠购买档位。大额档位任一项为 0 时，前台不显示大额购买入口。</p>
+                    <p className="text-xs text-muted-foreground mt-1">可增加、删除并排序显示多个流量包；“价格说明”留空时前端不显示该行。</p>
                   </div>
                   <button
                     onClick={() => handleSave("saveTopup")}
@@ -1742,35 +1753,20 @@ export default function AdminDashboard() {
                     {btnStatus.saveTopup || "保存"}
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">最低充值（GB） — 用户必须按此倍数购买</label>
-                    <input type="number" min={0} step={1}
-                      value={config.topupMinGb ?? 0}
-                      onChange={e => setConfig({ ...config, topupMinGb: Number(e.target.value) || 0 })}
-                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">单价（¥）— 每 {config.topupMinGb || 0}GB 的价格</label>
-                    <input type="number" min={0} step={0.01}
-                      value={config.topupPrice ?? 0}
-                      onChange={e => setConfig({ ...config, topupPrice: Number(e.target.value) || 0 })}
-                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">大额流量起购（GB）— 用户必须按此倍数购买</label>
-                    <input type="number" min={0} step={1}
-                      value={config.topupLargeMinGb ?? 0}
-                      onChange={e => setConfig({ ...config, topupLargeMinGb: Number(e.target.value) || 0 })}
-                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">大额优惠价（¥）— 每 {config.topupLargeMinGb || 0}GB 的价格</label>
-                    <input type="number" min={0} step={0.01}
-                      value={config.topupLargePrice ?? 0}
-                      onChange={e => setConfig({ ...config, topupLargePrice: Number(e.target.value) || 0 })}
-                      className="w-full border border-input p-2 rounded text-sm bg-background focus:ring-2 focus:ring-client-primary outline-none" />
-                  </div>
+                <div className="space-y-3">
+                  {(config.topupPackages || []).map((pkg, index) => (
+                    <div key={pkg.id} className="rounded-xl border border-border bg-background/60 p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.1fr_.65fr_.65fr_1.5fr_.7fr_auto] gap-2 items-end">
+                        <div><label className="block text-xs text-muted-foreground mb-1">前端标题</label><input value={pkg.title} onChange={e => { const next=[...config.topupPackages]; next[index]={...pkg,title:e.target.value}; setConfig({...config,topupPackages:next}); }} placeholder="例如：购买流量包" className="w-full border border-input p-2 rounded text-sm bg-background" /></div>
+                        <div><label className="block text-xs text-muted-foreground mb-1">每档流量（GB）</label><input type="number" min={1} step={1} value={pkg.minGb} onChange={e => { const next=[...config.topupPackages]; next[index]={...pkg,minGb:Number(e.target.value)||0}; setConfig({...config,topupPackages:next}); }} className="w-full border border-input p-2 rounded text-sm bg-background" /></div>
+                        <div><label className="block text-xs text-muted-foreground mb-1">每档价格（¥）</label><input type="number" min={0.01} step={0.01} value={pkg.price} onChange={e => { const next=[...config.topupPackages]; next[index]={...pkg,price:Number(e.target.value)||0}; setConfig({...config,topupPackages:next}); }} className="w-full border border-input p-2 rounded text-sm bg-background" /></div>
+                        <div><label className="block text-xs text-muted-foreground mb-1">价格说明（留空则隐藏）</label><input value={pkg.priceLabel} onChange={e => { const next=[...config.topupPackages]; next[index]={...pkg,priceLabel:e.target.value}; setConfig({...config,topupPackages:next}); }} placeholder="例如：优惠价：¥50 / 100GB" className="w-full border border-input p-2 rounded text-sm bg-background" /></div>
+                        <div><label className="block text-xs text-muted-foreground mb-1">配色</label><select value={pkg.style} onChange={e => { const next=[...config.topupPackages]; next[index]={...pkg,style:e.target.value as "primary"|"orange"}; setConfig({...config,topupPackages:next}); }} className="w-full border border-input p-2 rounded text-sm bg-background"><option value="primary">蓝色</option><option value="orange">橙色优惠</option></select></div>
+                        <button type="button" onClick={() => setConfig({...config,topupPackages:config.topupPackages.filter((_,i)=>i!==index)})} className="p-2 rounded border border-destructive/30 text-destructive hover:bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setConfig({...config,topupPackages:[...(config.topupPackages||[]),{id:`package-${Date.now()}`,title:"新流量包",minGb:10,price:10,priceLabel:"",style:"primary"}]})} className="inline-flex items-center gap-1 px-3 py-2 rounded bg-client-primary text-client-primary-foreground text-sm font-bold"><Plus className="w-4 h-4" />增加流量包</button>
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">

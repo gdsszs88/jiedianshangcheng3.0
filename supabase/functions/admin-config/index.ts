@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
         topupPrice: Number(data.topup_price ?? 0),
         topupLargeMinGb: data.topup_large_min_gb ?? 0,
         topupLargePrice: Number(data.topup_large_price ?? 0),
+        topupPackages: Array.isArray(data.topup_packages) ? data.topup_packages : [],
         topupBlacklist: data.topup_blacklist || "",
         subscriptionDomain: data.subscription_domain || "dy.ip520.top",
       };
@@ -197,6 +198,14 @@ Deno.serve(async (req) => {
         topup_price: Math.max(0, Number(config.topupPrice) || 0),
         topup_large_min_gb: Math.max(0, Math.floor(Number(config.topupLargeMinGb) || 0)),
         topup_large_price: Math.max(0, Number(config.topupLargePrice) || 0),
+        topup_packages: Array.isArray(config.topupPackages) ? config.topupPackages.map((item: any, index: number) => ({
+          id: String(item?.id || `package-${index + 1}`).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64),
+          title: String(item?.title || "流量包").trim().slice(0, 50),
+          minGb: Math.max(1, Math.floor(Number(item?.minGb) || 0)),
+          price: Math.max(0.01, Number(Number(item?.price || 0).toFixed(2))),
+          priceLabel: String(item?.priceLabel || "").trim().slice(0, 100),
+          style: item?.style === "orange" ? "orange" : "primary",
+        })).filter((item: any) => item.id && item.minGb > 0 && item.price > 0) : [],
         topup_blacklist: typeof config.topupBlacklist === "string" ? config.topupBlacklist : "",
         subscription_domain: subscriptionDomain,
         subscription_domain_history: subscriptionDomainHistory,
