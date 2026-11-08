@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -296,6 +297,7 @@ export default function ClientPortal() {
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [payUrl, setPayUrl] = useState("");
   const [orderCreating, setOrderCreating] = useState(false);
+  const [inboundMatching, setInboundMatching] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [videoEmbed, setVideoEmbed] = useState("");
   const [checkoutEmail, setCheckoutEmail] = useState("");
@@ -870,20 +872,30 @@ export default function ClientPortal() {
       return;
     }
     if (checkoutData.type === "buy_new") {
-      setOrderCreating(true);
-      setPayStatus("matching_inbound");
+      // Flush synchronously so the user sees feedback before any network call.
+      flushSync(() => {
+        setOrderCreating(true);
+        setInboundMatching(true);
+        setPayStatus("matching_inbound");
+      });
       const matchingStartedAt = Date.now();
-      // Yield once so React paints the matching state before network checks start.
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      const available = await ensureBuyNewInboundAvailable();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      let available = false;
+      try {
+        available = await ensureBuyNewInboundAvailable();
+      } catch {
+        setError("匹配可用订阅链接失败，请稍后重试");
+      }
       const remainingDisplayTime = 1000 - (Date.now() - matchingStartedAt);
       if (remainingDisplayTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingDisplayTime));
       }
       if (!available) {
+        setInboundMatching(false);
         setOrderCreating(false);
         return;
       }
+      setInboundMatching(false);
     }
 
     // Compute crypto price
@@ -1406,7 +1418,7 @@ export default function ClientPortal() {
   // Main portal
   return (
     <div className="bg-muted min-h-screen text-foreground">
-      {payStatus === "matching_inbound" && (
+      {inboundMatching && (
         <div className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm flex items-center justify-center px-6">
           <div className="w-full max-w-sm bg-card border border-client-primary/40 rounded-2xl p-8 text-center shadow-2xl">
             <div className="animate-spin w-14 h-14 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-5" />
@@ -2454,7 +2466,7 @@ export default function ClientPortal() {
                           {orderCreating ? (
                             <span className="inline-flex items-center justify-center gap-2">
                               <span className="animate-spin w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
-                              {payStatus === "matching_inbound" ? "正在匹配可用订阅链接..." : "正在创建订单..."}
+                              {inboundMatching ? "正在匹配可用订阅链接..." : "正在创建订单..."}
                             </span>
                           ) : "确认支付方式"}
                         </button>
