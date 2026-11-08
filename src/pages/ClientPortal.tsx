@@ -299,6 +299,7 @@ export default function ClientPortal() {
   const [orderCreating, setOrderCreating] = useState(false);
   const [inboundMatching, setInboundMatching] = useState(false);
   const [inboundMatchError, setInboundMatchError] = useState("");
+  const [noStockContact, setNoStockContact] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [videoEmbed, setVideoEmbed] = useState("");
   const [checkoutEmail, setCheckoutEmail] = useState("");
@@ -859,6 +860,7 @@ export default function ClientPortal() {
       setPayStatus("error");
       const message = "目前没有可用的订阅链接，请联系客服手动开通";
       setInboundMatchError(message);
+      setNoStockContact(checkoutEmail.trim());
       return false;
     }
     return true;
@@ -950,8 +952,16 @@ export default function ClientPortal() {
         setError(res?.error || "创建订单失败");
       }
     } catch (err: any) {
-      setPayStatus("error");
-      setError(err?.message || "创建订单失败");
+      const message = err?.message || "创建订单失败";
+      if (message.includes("没有可用的订阅链接")) {
+        setInboundMatchError("目前没有可用的订阅链接，请联系客服手动开通");
+        setNoStockContact(checkoutEmail.trim());
+        setInboundMatching(true);
+        setPayStatus(null);
+      } else {
+        setPayStatus("error");
+        setError(message);
+      }
     } finally {
       setOrderCreating(false);
     }
@@ -1193,8 +1203,16 @@ export default function ClientPortal() {
         setError(res?.error || "创建订单失败");
       }
     } catch (err: any) {
-      setPayStatus("error");
-      setError(err?.message || "创建订单失败");
+      const message = err?.message || "创建订单失败";
+      if (message.includes("没有可用的订阅链接")) {
+        setInboundMatchError("目前没有可用的订阅链接，请联系客服手动开通");
+        setNoStockContact(checkoutEmail.trim());
+        setInboundMatching(true);
+        setPayStatus(null);
+      } else {
+        setPayStatus("error");
+        setError(message);
+      }
     } finally {
       setOrderCreating(false);
     }
@@ -1453,6 +1471,8 @@ export default function ClientPortal() {
                   onClick={() => {
                     setInboundMatching(false);
                     setInboundMatchError("");
+                    setPayStatus(null);
+                    setError("");
                   }}
                   className="w-full bg-client-primary text-client-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-colors"
                 >
@@ -2432,7 +2452,14 @@ export default function ClientPortal() {
                         <input
                           type="text"
                           value={checkoutEmail}
-                          onChange={(e) => setCheckoutEmail(e.target.value)}
+                          onChange={(e) => {
+                            setCheckoutEmail(e.target.value);
+                            if (e.target.value.trim() !== noStockContact) {
+                              setNoStockContact("");
+                              setError("");
+                              if (payStatus === "error") setPayStatus(null);
+                            }
+                          }}
                           placeholder="填写后可通过「查单找回」功能找回订单和节点链接"
                           className={`w-full px-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-client-primary focus:border-transparent outline-none bg-background text-foreground text-sm ${checkoutData?.type === "buy_new" && !checkoutEmail.trim() ? "border-destructive" : "border-input"}`}
                           required={checkoutData?.type === "buy_new"}
@@ -2502,10 +2529,10 @@ export default function ClientPortal() {
                       {selectedMethod && !["usdt", "trx"].includes(selectedMethod) && (
                         <button
                           onClick={confirmPayment}
-                          disabled={orderCreating}
-                          className="w-full bg-client-primary text-client-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-colors shadow-md"
+                          disabled={orderCreating || (!!noStockContact && noStockContact === checkoutEmail.trim())}
+                          className={`w-full font-bold py-3 rounded-xl transition-colors shadow-md ${orderCreating || (!!noStockContact && noStockContact === checkoutEmail.trim()) ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60" : "bg-client-primary text-client-primary-foreground hover:opacity-90"}`}
                         >
-                          {orderCreating ? (
+                          {!!noStockContact && noStockContact === checkoutEmail.trim() ? "当前联系方式无可用链接" : orderCreating ? (
                             <span className="inline-flex items-center justify-center gap-2">
                               <span className="animate-spin w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
                               {inboundMatching ? "正在匹配可用订阅链接..." : "正在创建订单..."}
