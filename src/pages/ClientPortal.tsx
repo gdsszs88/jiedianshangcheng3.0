@@ -1406,6 +1406,18 @@ export default function ClientPortal() {
   // Main portal
   return (
     <div className="bg-muted min-h-screen text-foreground">
+      {payStatus === "matching_inbound" && (
+        <div className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm flex items-center justify-center px-6">
+          <div className="w-full max-w-sm bg-card border border-client-primary/40 rounded-2xl p-8 text-center shadow-2xl">
+            <div className="animate-spin w-14 h-14 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-5" />
+            <h3 className="text-xl font-extrabold mb-2">正在匹配可用订阅链接...</h3>
+            <p className="text-sm text-muted-foreground">正在核对已购买节点与有效期，请勿重复点击</p>
+            <div className="h-1.5 bg-muted rounded-full mt-5 overflow-hidden">
+              <div className="h-full w-2/3 bg-client-primary rounded-full animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
       <nav className="bg-card shadow-sm px-6 py-4 flex justify-between items-center border-b border-border">
         <div className="flex items-center gap-4">
           <button
