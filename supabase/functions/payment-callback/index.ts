@@ -1081,10 +1081,19 @@ Deno.serve(async (req) => {
         finalStatus = created ? "fulfilled" : "paid";
       }
 
-      // Send email notification via Resend
-      // Skip for buy_new orders: create-client will send "🎉 新用户开通成功" after the client is provisioned,
-      // otherwise admin gets a misleading "待处理/未找到" email and the sweep is blocked by email_notified=true.
-      if (order.order_type !== "buy_new" && config.resend_api_key && config.notify_email) {
+      // Send email notification via Resend. create-client normally sends the
+      // buy-new notification itself, but callback-triggered fulfilment must also
+      // provide a fallback in case an older create-client deployment (or a
+      // transient mail failure) leaves email_notified=false.
+      const { data: latestOrder } = await supabase
+        .from("orders")
+        .select("email_notified, status, uuid, inbound_remark, client_remark, email")
+        .eq("id", order.id)
+        .maybeSingle();
+      const shouldNotify = !latestOrder?.email_notified;
+      const notifyRemark = latestOrder?.client_remark || latestOrder?.inbound_remark || clientRemark || "未填写";
+      const notifyStatus = latestOrder?.status || finalStatus;
+      if (shouldNotify && config.resend_api_key && config.notify_email) {
         try {
           const emRes = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -1095,19 +1104,22 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               from: "通知 <onboarding@resend.dev>",
               to: [config.notify_email],
-              subject: `💰 ${isTopupOrder ? "流量充值" : "支付"}成功通知 - ${order.plan_name}`,
+              subject: order.order_type === "buy_new"
+                ? `🎉 新用户开通成功 - ${order.plan_name}`
+                : `💰 ${isTopupOrder ? "流量充值" : "支付"}成功通知 - ${order.plan_name}`,
               html: `
                 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
                   <h2 style="color:#10b981;">✅ 用户支付成功</h2>
                   <table style="width:100%;border-collapse:collapse;margin-top:16px;">
                     <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">订单号</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:bold;">${order.trade_no || order.id}</td></tr>
-                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户UUID</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.uuid}</td></tr>
-                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户备注</td><td style="padding:8px;border-bottom:1px solid #eee;">${clientRemark || "未找到"}</td></tr>
+                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户UUID</td><td style="padding:8px;border-bottom:1px solid #eee;">${latestOrder?.uuid || order.uuid}</td></tr>
+                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">邮箱/手机</td><td style="padding:8px;border-bottom:1px solid #eee;">${latestOrder?.email || order.email || "未填写"}</td></tr>
+                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户备注</td><td style="padding:8px;border-bottom:1px solid #eee;">${notifyRemark}</td></tr>
                     <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">套餐</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.plan_name}</td></tr>
                     <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">金额</td><td style="padding:8px;border-bottom:1px solid #eee;">¥${order.amount}</td></tr>
                     <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">${isTopupOrder ? "流量" : "时长"}</td><td style="padding:8px;border-bottom:1px solid #eee;">${isTopupOrder ? `${order.months} GB` : `${order.months} 个月`}</td></tr>
                     <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">支付方式</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.payment_method}</td></tr>
-                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">处理状态</td><td style="padding:8px;border-bottom:1px solid #eee;">${finalStatus === "fulfilled" ? (isTopupOrder ? "✅ 已增加流量" : "✅ 已续费") : "⚠️ 待处理"}</td></tr>
+                    <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">处理状态</td><td style="padding:8px;border-bottom:1px solid #eee;">${notifyStatus === "fulfilled" ? (order.order_type === "buy_new" ? "✅ 已开通发货" : isTopupOrder ? "✅ 已增加流量" : "✅ 已续费") : "⚠️ 待处理"}</td></tr>
                     <tr><td style="padding:8px;color:#666;">时间</td><td style="padding:8px;">${new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</td></tr>
                   </table>
                 </div>
