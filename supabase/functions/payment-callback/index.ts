@@ -365,6 +365,7 @@ async function findClient(panelUrl: string, cookie: string, identifier: string) 
             inboundRemark: inbound.remark || "",
             email,
             expiryTime,
+            enabled: entry.enable !== false && inbound.enable !== false,
             isSocks5,
             usedBytes: isSocks5 ? trafficUsedBytes(inbound.up, inbound.down) : trafficUsedBytes(clientStats?.up, clientStats?.down),
             totalBytes: isSocks5 ? normalizeTrafficLimitBytes(inbound.total) : normalizeTrafficLimitBytes(entry.totalGB || clientStats?.total),
@@ -1257,17 +1258,24 @@ Deno.serve(async (req) => {
             : { data: [] };
           const { data: previousOrders } = await supabase
             .from("orders")
-            .select("inbound_id")
+            .select("inbound_id, uuid")
             .eq("email", email)
             .eq("status", "fulfilled")
             .not("inbound_id", "is", null);
-          const usedInboundIds = new Set((previousOrders || []).map((item: any) => Number(item.inbound_id)));
+          const usedInboundIds = new Set<number>();
+          for (const previous of previousOrders || []) {
+            if (!previous?.uuid) continue;
+            const lookup = await findExistingClientForOrder(supabase, previous.uuid);
+            const expiry = Number(lookup.client?.expiryTime || 0);
+            const active = !!lookup.client && lookup.client.enabled !== false && (expiry <= 0 || expiry > Date.now());
+            if (active) usedInboundIds.add(Number(lookup.client.inboundId ?? previous.inbound_id));
+          }
           const hasCapacity = (candidates || []).some((item: any) =>
             !usedInboundIds.has(Number(item.inbound_id)) &&
             (!item.max_clients || item.max_clients <= 0 || Number(item.current_clients || 0) < Number(item.max_clients))
           );
           if (!hasCapacity) {
-            return new Response(JSON.stringify({ error: "该联系方式在当前地区/套餐已没有可分配的新入站，请选择其他地区或联系客服补货" }), {
+            return new Response(JSON.stringify({ error: "目前没有可用的订阅链接，请联系客服手动开通" }), {
               status: 409,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });

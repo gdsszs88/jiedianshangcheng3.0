@@ -842,15 +842,21 @@ export default function ClientPortal() {
     try {
       const contactOrders = await lookupOrdersByEmail(contact);
       for (const order of contactOrders || []) {
-        if (order?.status === "fulfilled" && order?.inbound_id != null) {
-          contactPurchased.add(Number(order.inbound_id));
-        }
+        if (order?.status !== "fulfilled" || !order?.uuid) continue;
+        try {
+          const liveClient = await lookupClient(order.uuid);
+          const expiry = Number(liveClient?.expiryDate || 0);
+          const active = liveClient?.success && (expiry <= 0 || expiry > Date.now());
+          if (active && liveClient?.inboundId != null) contactPurchased.add(Number(liveClient.inboundId));
+        } catch {}
       }
     } catch {}
     const available = getAvailableInboundsForPlan(checkoutData.planId, checkoutData.regionId, contactPurchased);
     if (available.length === 0) {
       setPayStatus("error");
-      setError("该联系方式在当前地区/套餐已没有可分配的新入站，请选择其他地区或联系客服补货。");
+      const message = "目前没有可用的订阅链接，请联系客服手动开通";
+      setError(message);
+      alert(message);
       return false;
     }
     return true;

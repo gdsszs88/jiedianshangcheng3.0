@@ -30,6 +30,37 @@ async function safeJson(res: Response): Promise<any> {
   }
 }
 
+async function activeInboundForIdentifier(panelUrl: string, cookie: string, identifier: string): Promise<number | null> {
+  if (!identifier) return null;
+  try {
+    const baseUrl = panelUrl.replace(/\/+$/, "");
+    const response = await fetchUnsafe(`${baseUrl}/panel/api/inbounds/list`, {
+      headers: { Cookie: cookie, Accept: "application/json" },
+    });
+    const data = await safeJson(response);
+    for (const inbound of data?.obj || []) {
+      let settings: any = {};
+      try { settings = JSON.parse(inbound.settings || "{}"); } catch {}
+      const entries = [
+        ...(Array.isArray(settings.clients) ? settings.clients : []),
+        ...(Array.isArray(settings.accounts) ? settings.accounts : []),
+      ];
+      for (const entry of entries) {
+        const keys = [entry?.id, entry?.user, entry?.username, entry?.pass, entry?.password]
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
+        if (!keys.includes(identifier)) continue;
+        const isSocks = Array.isArray(settings.accounts) && settings.accounts.includes(entry);
+        const expiry = Number(isSocks ? inbound.expiryTime || 0 : entry.expiryTime || 0);
+        const enabled = entry.enable !== false && inbound.enable !== false;
+        return enabled && (expiry <= 0 || expiry > Date.now()) ? Number(inbound.id) : null;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to inspect previous client validity:", error);
+  }
+  return null;
+}
+
 // Login to 3x-ui and get session cookie
 async function login3xui(panelUrl: string, username: string, password: string): Promise<string | null> {
   const baseUrl = panelUrl.replace(/\/+$/, "");
@@ -303,29 +334,36 @@ Deno.serve(async (req) => {
       } catch (e) { console.error("rollback lock failed", e); }
     };
 
-    const previouslyUsedInboundIds = new Set<number>();
-    const addUsedInboundRows = (rows: any[] | null | undefined) => {
-      for (const row of rows || []) {
-        if (row?.inbound_id != null) previouslyUsedInboundIds.add(Number(row.inbound_id));
-      }
+    const previousRows = new Map<string, any>();
+    const collectPreviousRows = (rows: any[] | null | undefined) => {
+      for (const row of rows || []) if (row?.uuid) previousRows.set(String(row.uuid), row);
     };
     if (order.uuid && order.uuid !== "游客_未登录") {
       const { data: byUuid } = await supabase
         .from("orders")
-        .select("inbound_id")
+        .select("inbound_id, uuid")
         .eq("uuid", order.uuid)
         .eq("status", "fulfilled")
         .not("inbound_id", "is", null);
-      addUsedInboundRows(byUuid);
+      collectPreviousRows(byUuid);
     }
     if (order.email) {
       const { data: byEmail } = await supabase
         .from("orders")
-        .select("inbound_id")
+        .select("inbound_id, uuid")
         .eq("email", order.email)
         .eq("status", "fulfilled")
         .not("inbound_id", "is", null);
-      addUsedInboundRows(byEmail);
+      collectPreviousRows(byEmail);
+    }
+
+    const previouslyUsedInboundIds = new Set<number>();
+    const previousCookie = await login3xui(config.panel_url, config.panel_user, config.panel_pass);
+    if (previousCookie) {
+      for (const row of previousRows.values()) {
+        const activeInboundId = await activeInboundForIdentifier(config.panel_url, previousCookie, row.uuid);
+        if (activeInboundId != null) previouslyUsedInboundIds.add(activeInboundId);
+      }
     }
 
     // Determine inbound_id and protocol
@@ -471,7 +509,7 @@ Deno.serve(async (req) => {
           if (!available) {
             // All inbounds for this plan are full or already used by this buyer — block purchase
             await rollbackLock();
-            return new Response(JSON.stringify({ error: "该地区/套餐暂无可分配的新入站，请选择其他地区或联系客服补货" }), {
+            return new Response(JSON.stringify({ error: "目前没有可用的订阅链接，请联系客服手动开通" }), {
               status: 409,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -528,7 +566,7 @@ Deno.serve(async (req) => {
 
     if (previouslyUsedInboundIds.has(Number(salesInboundId))) {
       await rollbackLock();
-      return new Response(JSON.stringify({ error: "该地区/套餐暂无可分配的新入站，请选择其他地区或联系客服补货" }), {
+      return new Response(JSON.stringify({ error: "目前没有可用的订阅链接，请联系客服手动开通" }), {
         status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
