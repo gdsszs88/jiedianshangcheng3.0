@@ -90,6 +90,8 @@ export async function createOrder(params: {
   cryptoCurrency?: string;
   email?: string;
   gb?: number;
+  planId?: string | null;
+  regionId?: string | null;
 }) {
   return callEdgeFunction("payment-callback", { action: "create-order", ...params });
 }

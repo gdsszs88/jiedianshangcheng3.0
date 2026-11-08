@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { orderId, regionId } = await req.json();
+    const { orderId, regionId: requestRegionId } = await req.json();
     parsedOrderId = orderId || null;
 
     if (!orderId) {
@@ -170,6 +170,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const regionId = requestRegionId || order.selected_region_id || null;
 
     if (!["paid", "fulfilled", "processing"].includes(order.status)) {
       return new Response(JSON.stringify({ error: "订单未支付" }), {
@@ -335,16 +337,26 @@ Deno.serve(async (req) => {
     //    (title alone collides across price tiers, e.g. 50元/80元 both named "独享一个月")
     let matchedPlans: any[] | null = null;
     {
+      if (order.selected_plan_id) {
+        const { data: selected } = await supabase
+          .from("plans")
+          .select("id, traffic_gb, region_id, price, duration_days")
+          .eq("id", order.selected_plan_id)
+          .maybeSingle();
+        if (selected) matchedPlans = [selected];
+      }
       const orderAmount = Number((order as any).amount);
       const orderDuration = Number((order as any).duration_days);
       // Strictest match first: title + price + duration
-      const { data: strict } = await supabase
+      const { data: strict } = matchedPlans ? { data: null } : await supabase
         .from("plans")
         .select("id, traffic_gb, region_id, price, duration_days")
         .eq("title", order.plan_name)
         .eq("price", orderAmount)
         .eq("duration_days", orderDuration);
-      if (strict && strict.length > 0) {
+      if (matchedPlans) {
+        // Exact plan selected by the customer and stored on the order.
+      } else if (strict && strict.length > 0) {
         matchedPlans = strict;
       } else {
         // Fallback: title + price only

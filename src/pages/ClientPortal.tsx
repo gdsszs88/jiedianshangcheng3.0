@@ -905,6 +905,7 @@ export default function ClientPortal() {
         ...(checkoutData.type === "buy_new" || checkoutData.type === "topup_traffic" ? { orderType: checkoutData.type } : {}),
         ...(checkoutData.type === "topup_traffic" ? { gb: (checkoutData.months || 0) } : {}),
         ...(checkoutData.type === "topup_traffic" && checkoutData.planId ? { topupPackageId: checkoutData.planId } : {}),
+        ...(checkoutData.type === "buy_new" ? { planId: checkoutData.planId, regionId: checkoutData.regionId } : {}),
         cryptoAmount: computedPrice,
         cryptoCurrency: method.toUpperCase(),
         ...(checkoutEmail.trim() ? { email: checkoutEmail.trim() } : {}),
@@ -1119,6 +1120,7 @@ export default function ClientPortal() {
         orderType: checkoutData.type === "buy_new" ? "buy_new" : checkoutData.type === "topup_traffic" ? "topup_traffic" : "renew",
         ...(checkoutData.type === "topup_traffic" ? { gb: (checkoutData.months || 0) } : {}),
         ...(checkoutData.type === "topup_traffic" && checkoutData.planId ? { topupPackageId: checkoutData.planId } : {}),
+        ...(checkoutData.type === "buy_new" ? { planId: checkoutData.planId, regionId: checkoutData.regionId } : {}),
         ...(isCrypto ? { cryptoAmount: cryptoPrice, cryptoCurrency: selectedMethod.toUpperCase() } : {}),
         ...(checkoutEmail.trim() ? { email: checkoutEmail.trim() } : {}),
       });

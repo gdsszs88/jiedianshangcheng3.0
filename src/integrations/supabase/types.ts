@@ -356,6 +356,8 @@ export type Database = {
           paid_at: string | null
           payment_method: string
           plan_name: string
+          selected_plan_id: string | null
+          selected_region_id: string | null
           status: string
           trade_no: string | null
           tx_hash: string | null
@@ -382,6 +384,8 @@ export type Database = {
           paid_at?: string | null
           payment_method: string
           plan_name: string
+          selected_plan_id?: string | null
+          selected_region_id?: string | null
           status?: string
           trade_no?: string | null
           tx_hash?: string | null
@@ -408,6 +412,8 @@ export type Database = {
           paid_at?: string | null
           payment_method?: string
           plan_name?: string
+          selected_plan_id?: string | null
+          selected_region_id?: string | null
           status?: string
           trade_no?: string | null
           tx_hash?: string | null

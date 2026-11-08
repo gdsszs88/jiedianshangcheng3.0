@@ -416,7 +416,7 @@ async function checkTrxTransactions(address: string, apiKey: string, expectedAmo
   return { found: false };
 }
 
-async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
+async function triggerCreateClientForBuyNew(orderId: string, regionId?: string | null): Promise<boolean> {
   try {
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -427,7 +427,7 @@ async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
         Authorization: `Bearer ${serviceKey}`,
         apikey: serviceKey,
       },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, ...(regionId ? { regionId } : {}) }),
     });
     const text = await res.text().catch(() => "");
     if (!res.ok) {
@@ -604,7 +604,7 @@ Deno.serve(async (req) => {
       }
 
       if (isBuyNewOrder) {
-        fulfilled = await triggerCreateClientForBuyNew(order.id);
+        fulfilled = await triggerCreateClientForBuyNew(order.id, order.selected_region_id);
       }
 
       if (fulfilled) {

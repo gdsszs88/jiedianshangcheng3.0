@@ -809,7 +809,7 @@ async function settleRecoveredOrder(supabase: any, order: any, config: any): Pro
   const isBuyNewOrder = order.order_type === "buy_new";
   const isTopupOrder = order.order_type === "topup_traffic" || String(order.plan_name || "").includes("流量充值");
   if (isBuyNewOrder) {
-    const created = await triggerCreateClientForBuyNew(order.id);
+    const created = await triggerCreateClientForBuyNew(order.id, order.selected_region_id);
     return created ? "fulfilled" : "paid";
   }
 
@@ -899,7 +899,7 @@ async function sendRecoveredOrderEmail(supabase: any, orderId: string, config: a
   }
 }
 
-async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
+async function triggerCreateClientForBuyNew(orderId: string, regionId?: string | null): Promise<boolean> {
   try {
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -910,7 +910,7 @@ async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
         Authorization: `Bearer ${serviceKey}`,
         apikey: serviceKey,
       },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, ...(regionId ? { regionId } : {}) }),
     });
     const text = await res.text().catch(() => "");
     if (!res.ok) {
@@ -1124,7 +1124,7 @@ Deno.serve(async (req) => {
         }
       } else {
         console.log("Buy-new order detected, triggering create-client from callback.");
-        const created = await triggerCreateClientForBuyNew(order.id);
+        const created = await triggerCreateClientForBuyNew(order.id, order.selected_region_id);
         finalStatus = created ? "fulfilled" : "paid";
       }
 
@@ -1193,7 +1193,7 @@ Deno.serve(async (req) => {
       const { action } = body;
 
       if (action === "create-order") {
-        const { uuid, planName, months, durationDays, amount, paymentMethod, orderType, cryptoAmount, cryptoCurrency, email, gb, topupPackageId } = body;
+        const { uuid, planName, months, durationDays, amount, paymentMethod, orderType, cryptoAmount, cryptoCurrency, email, gb, topupPackageId, planId, regionId } = body;
         const normalizedOrderType =
           orderType === "topup_traffic" || gb !== undefined || String(planName || "").includes("流量充值")
             ? "topup_traffic"
@@ -1328,6 +1328,8 @@ Deno.serve(async (req) => {
             crypto_amount: finalCryptoAmount || null,
             crypto_currency: cryptoCurrency || null,
             email: email || null,
+            selected_plan_id: normalizedOrderType === "buy_new" ? (planId || null) : null,
+            selected_region_id: normalizedOrderType === "buy_new" ? (regionId || null) : null,
             status: "pending",
           })
           .select()
