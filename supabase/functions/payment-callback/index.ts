@@ -852,6 +852,53 @@ async function settleRecoveredOrder(supabase: any, order: any, config: any): Pro
   return status;
 }
 
+async function sendRecoveredOrderEmail(supabase: any, orderId: string, config: any): Promise<boolean> {
+  if (!config?.resend_api_key || !config?.notify_email) return false;
+  const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
+  if (!order || order.email_notified) return true;
+  const isTopup = order.order_type === "topup_traffic" || String(order.plan_name || "").includes("流量充值");
+  const isBuyNew = order.order_type === "buy_new";
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.resend_api_key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "通知 <onboarding@resend.dev>",
+        to: [config.notify_email],
+        subject: isBuyNew
+          ? `🎉 新用户开通成功 - ${order.plan_name}`
+          : `💰 ${isTopup ? "流量充值" : "续费"}成功通知 - ${order.plan_name}`,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2 style="color:#10b981;">✅ ${isBuyNew ? "新用户开通成功" : isTopup ? "流量充值成功" : "用户续费成功"}</h2>
+          <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">订单号</td><td style="padding:8px;border-bottom:1px solid #eee;font-weight:bold;">${order.trade_no || order.id}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户UUID</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.uuid || "未填写"}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">邮箱/手机</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.email || "未填写"}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">用户备注</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.client_remark || order.inbound_remark || "未填写"}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">套餐</td><td style="padding:8px;border-bottom:1px solid #eee;">${order.plan_name}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">金额</td><td style="padding:8px;border-bottom:1px solid #eee;">¥${order.amount}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">支付方式</td><td style="padding:8px;border-bottom:1px solid #eee;">支付宝官方支付</td></tr>
+            <tr><td style="padding:8px;color:#666;">处理状态</td><td style="padding:8px;">${order.status === "fulfilled" ? "✅ 已自动发货" : "⚠️ 已付款待处理"}</td></tr>
+          </table>
+        </div>`,
+      }),
+    });
+    if (!response.ok) {
+      console.error("Recovered Alipay order email failed:", response.status, await response.text().catch(() => ""));
+      return false;
+    }
+    await supabase.from("orders").update({ email_notified: true }).eq("id", order.id).eq("email_notified", false);
+    console.log("Recovered Alipay order email sent:", order.trade_no || order.id);
+    return true;
+  } catch (error) {
+    console.error("Recovered Alipay order email error:", String(error));
+    return false;
+  }
+}
+
 async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
   try {
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1504,6 +1551,7 @@ Deno.serve(async (req) => {
                 }).eq("id", order.id).eq("status", "pending").select("*").maybeSingle();
                 if (claimed) {
                   await settleRecoveredOrder(supabase, claimed, config);
+                  await sendRecoveredOrderEmail(supabase, claimed.id, config);
                 }
                 const refreshed = await supabase.from("orders").select("*").eq("id", order.id).single();
                 order = refreshed.data;
