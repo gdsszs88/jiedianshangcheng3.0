@@ -298,6 +298,7 @@ export default function ClientPortal() {
   const [payUrl, setPayUrl] = useState("");
   const [orderCreating, setOrderCreating] = useState(false);
   const [inboundMatching, setInboundMatching] = useState(false);
+  const [inboundMatchError, setInboundMatchError] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [videoEmbed, setVideoEmbed] = useState("");
   const [checkoutEmail, setCheckoutEmail] = useState("");
@@ -857,8 +858,7 @@ export default function ClientPortal() {
     if (available.length === 0) {
       setPayStatus("error");
       const message = "目前没有可用的订阅链接，请联系客服手动开通";
-      setError(message);
-      alert(message);
+      setInboundMatchError(message);
       return false;
     }
     return true;
@@ -876,6 +876,7 @@ export default function ClientPortal() {
       flushSync(() => {
         setOrderCreating(true);
         setInboundMatching(true);
+        setInboundMatchError("");
         setPayStatus("matching_inbound");
       });
       const matchingStartedAt = Date.now();
@@ -884,14 +885,13 @@ export default function ClientPortal() {
       try {
         available = await ensureBuyNewInboundAvailable();
       } catch {
-        setError("匹配可用订阅链接失败，请稍后重试");
+        setInboundMatchError("匹配可用订阅链接失败，请稍后重试");
       }
       const remainingDisplayTime = 1000 - (Date.now() - matchingStartedAt);
       if (remainingDisplayTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingDisplayTime));
       }
       if (!available) {
-        setInboundMatching(false);
         setOrderCreating(false);
         return;
       }
@@ -1124,6 +1124,7 @@ export default function ClientPortal() {
       flushSync(() => {
         setOrderCreating(true);
         setInboundMatching(true);
+        setInboundMatchError("");
         setPayStatus("matching_inbound");
       });
       const matchingStartedAt = Date.now();
@@ -1132,17 +1133,17 @@ export default function ClientPortal() {
       try {
         available = await ensureBuyNewInboundAvailable();
       } catch {
-        setError("匹配可用订阅链接失败，请稍后重试");
+        setInboundMatchError("匹配可用订阅链接失败，请稍后重试");
       }
       const remainingDisplayTime = 1000 - (Date.now() - matchingStartedAt);
       if (remainingDisplayTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, remainingDisplayTime));
       }
-      setInboundMatching(false);
       if (!available) {
         setOrderCreating(false);
         return;
       }
+      setInboundMatching(false);
     }
     setOrderCreating(true);
     setPayStatus("creating");
@@ -1442,12 +1443,32 @@ export default function ClientPortal() {
       {inboundMatching && (
         <div className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm flex items-center justify-center px-6">
           <div className="w-full max-w-sm bg-card border border-client-primary/40 rounded-2xl p-8 text-center shadow-2xl">
-            <div className="animate-spin w-14 h-14 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-5" />
-            <h3 className="text-xl font-extrabold mb-2">正在匹配可用订阅链接...</h3>
-            <p className="text-sm text-muted-foreground">正在核对已购买节点与有效期，请勿重复点击</p>
-            <div className="h-1.5 bg-muted rounded-full mt-5 overflow-hidden">
-              <div className="h-full w-2/3 bg-client-primary rounded-full animate-pulse" />
-            </div>
+            {inboundMatchError ? (
+              <>
+                <div className="w-14 h-14 rounded-full bg-amber-500/15 text-amber-500 flex items-center justify-center mx-auto mb-5 text-3xl font-bold">!</div>
+                <h3 className="text-xl font-extrabold mb-3">目前没有可用的订阅链接</h3>
+                <p className="text-sm text-muted-foreground mb-6">请联系客服手动开通</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInboundMatching(false);
+                    setInboundMatchError("");
+                  }}
+                  className="w-full bg-client-primary text-client-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-colors"
+                >
+                  确定
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="animate-spin w-14 h-14 border-4 border-client-primary border-t-transparent rounded-full mx-auto mb-5" />
+                <h3 className="text-xl font-extrabold mb-2">正在匹配可用订阅链接...</h3>
+                <p className="text-sm text-muted-foreground">正在核对已购买节点与有效期，请勿重复点击</p>
+                <div className="h-1.5 bg-muted rounded-full mt-5 overflow-hidden">
+                  <div className="h-full w-2/3 bg-client-primary rounded-full animate-pulse" />
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
