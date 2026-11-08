@@ -782,6 +782,76 @@ function alipaySignContent(params: Record<string, string>, excludeSignType = fal
     .join("&");
 }
 
+async function queryOfficialAlipayTrade(config: any, tradeNo: string): Promise<any | null> {
+  const params: Record<string, string> = {
+    app_id: config.official_alipay_app_id,
+    method: "alipay.trade.query",
+    format: "JSON",
+    charset: "utf-8",
+    sign_type: "RSA2",
+    timestamp: new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date()).replace("T", " "),
+    version: "1.0",
+    biz_content: JSON.stringify({ out_trade_no: tradeNo }),
+  };
+  params.sign = await rsaSignBase64(alipaySignContent(params), config.official_alipay_private_key);
+  const response = await fetch("https://openapi.alipay.com/gateway.do", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+    body: new URLSearchParams(params).toString(),
+  });
+  const payload = await response.json().catch(() => ({}));
+  const result = payload.alipay_trade_query_response;
+  if (!response.ok || !result || result.code !== "10000") return null;
+  return result;
+}
+
+async function settleRecoveredOrder(supabase: any, order: any, config: any): Promise<string> {
+  const isBuyNewOrder = order.order_type === "buy_new";
+  const isTopupOrder = order.order_type === "topup_traffic" || String(order.plan_name || "").includes("流量充值");
+  if (isBuyNewOrder) {
+    const created = await triggerCreateClientForBuyNew(order.id);
+    return created ? "fulfilled" : "paid";
+  }
+
+  const { data: panelsList } = await supabase
+    .from("panels").select("*").eq("enabled", true)
+    .order("is_primary", { ascending: false }).order("sort_order", { ascending: true });
+  const fallbackPanel = { panel_url: config.panel_url, panel_user: config.panel_user, panel_pass: config.panel_pass };
+  const panelsToTry = panelsList?.length ? panelsList : [fallbackPanel];
+  let foundClient: any = null;
+  let foundPanel: any = null;
+  let foundCookie = "";
+  for (const panel of panelsToTry) {
+    const cookie = await login3xui(panel.panel_url, panel.panel_user, panel.panel_pass);
+    if (!cookie) continue;
+    const client = await findClient(panel.panel_url, cookie, order.uuid);
+    if (client) { foundClient = client; foundPanel = panel; foundCookie = cookie; break; }
+  }
+  if (!foundClient || !foundPanel) {
+    await supabase.from("orders").update({ status: "paid_unfulfilled" }).eq("id", order.id);
+    return "paid_unfulfilled";
+  }
+  const clientRemark = foundClient.email || "";
+  const success = isTopupOrder
+    ? await addClientTraffic(foundPanel.panel_url, foundCookie, foundClient.inboundId, foundClient.email, (Number(order.months) || 0) * GB, foundClient.isSocks5)
+    : await extendExpiry(
+      foundPanel.panel_url, foundCookie, foundClient.inboundId, foundClient.email,
+      foundClient.expiryTime, order.duration_days || (order.months * 30), foundClient.isSocks5,
+      Math.max(0, await resolveRenewalDefaultGB(supabase, order.uuid, foundClient.inboundRemark || "")) * GB,
+      foundClient.usedBytes || 0, foundClient.totalBytes || 0,
+    );
+  const status = success ? "fulfilled" : "paid_unfulfilled";
+  await supabase.from("orders").update({
+    status,
+    ...(success ? { fulfilled_at: new Date().toISOString() } : {}),
+    inbound_id: foundClient.inboundId,
+    inbound_remark: foundClient.inboundRemark || "",
+    client_remark: clientRemark,
+    ...(clientRemark && !order.email ? { email: clientRemark } : {}),
+  }).eq("id", order.id);
+  return status;
+}
+
 async function triggerCreateClientForBuyNew(orderId: string): Promise<boolean> {
   try {
     const baseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1399,7 +1469,33 @@ Deno.serve(async (req) => {
       // === CHECK ORDER STATUS ===
       if (action === "check-order") {
         const { orderId } = body;
-        const { data: order } = await supabase.from("orders").select("status, fulfilled_at").eq("id", orderId).single();
+        let { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single();
+        if (order?.status === "pending" && order.payment_method === "alipay_official") {
+          try {
+            const { data: config } = await supabase.from("admin_config").select("*").limit(1).single();
+            if (config?.official_alipay_enabled) {
+              const trade = await queryOfficialAlipayTrade(config, order.trade_no);
+              const paid = trade
+                && trade.out_trade_no === order.trade_no
+                && ["TRADE_SUCCESS", "TRADE_FINISHED"].includes(trade.trade_status)
+                && Math.abs(Number(trade.total_amount) - Number(order.amount)) < 0.001;
+              if (paid) {
+                const { data: claimed } = await supabase.from("orders").update({
+                  status: "paid",
+                  paid_at: new Date().toISOString(),
+                  notify_data: { source: "alipay-active-query", trade_no: trade.trade_no, trade_status: trade.trade_status },
+                }).eq("id", order.id).eq("status", "pending").select("*").maybeSingle();
+                if (claimed) {
+                  await settleRecoveredOrder(supabase, claimed, config);
+                }
+                const refreshed = await supabase.from("orders").select("*").eq("id", order.id).single();
+                order = refreshed.data;
+              }
+            }
+          } catch (queryError) {
+            console.error("Alipay active query recovery failed:", String(queryError));
+          }
+        }
         return new Response(JSON.stringify({ status: order?.status || "unknown" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
