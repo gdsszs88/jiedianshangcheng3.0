@@ -869,8 +869,14 @@ export default function ClientPortal() {
       alert("购买开通必须填写邮箱/手机号，方便后续查单找回");
       return;
     }
-    if (checkoutData.type === "buy_new" && !(await ensureBuyNewInboundAvailable())) {
-      return;
+    if (checkoutData.type === "buy_new") {
+      setOrderCreating(true);
+      setPayStatus("matching_inbound");
+      const available = await ensureBuyNewInboundAvailable();
+      if (!available) {
+        setOrderCreating(false);
+        return;
+      }
     }
 
     // Compute crypto price
@@ -2416,7 +2422,12 @@ export default function ClientPortal() {
                           disabled={orderCreating}
                           className="w-full bg-client-primary text-client-primary-foreground font-bold py-3 rounded-xl hover:opacity-90 transition-colors shadow-md"
                         >
-                          {orderCreating ? "正在创建订单..." : "确认支付方式"}
+                          {orderCreating ? (
+                            <span className="inline-flex items-center justify-center gap-2">
+                              <span className="animate-spin w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
+                              {payStatus === "matching_inbound" ? "正在匹配可用订阅链接..." : "正在创建订单..."}
+                            </span>
+                          ) : "确认支付方式"}
                         </button>
                       )}
 
