@@ -18,6 +18,29 @@ const defaultFaqs = [
   { q: "为什么 ChatGPT Plus 充值总是失败或被封号？", a: `<p>使用被滥用的机房IP会触发 Stripe 风控。使用静态住宅IP可大幅提升支付成功率。</p>` },
 ];
 
+const networkFaqs = [
+  { q: "可以让整台电脑的软件都使用同一个网络环境吗？", a: `<p>可以。使用支持<strong>系统代理</strong>或<strong>TUN 模式</strong>的客户端后，可让浏览器、Codex、Claude Code、Cursor、Git、终端和其他桌面软件统一使用同一个网络出口。</p><p>普通“系统代理”主要覆盖主动读取系统代理的软件；如需覆盖更多命令行和不读取系统代理的应用，建议开启 TUN 模式，并确认 DNS 也由代理客户端接管。</p>` },
+  { q: "Codex、Claude Code 和其他 AI 客户端能使用吗？", a: `<p>可以。服务不仅适用于网页版 ChatGPT、Gemini、Claude，也适用于 Codex、Claude Code、Cursor、Windsurf、GitHub Copilot 等桌面端、IDE 插件和命令行工具。</p><p>如果网页可以访问但客户端仍然超时，通常是客户端或终端没有继承系统代理，可切换 TUN 模式或按软件要求配置 HTTP_PROXY、HTTPS_PROXY。</p>` },
+  { q: "开启后会改变电脑显示的公网 IP 和地区吗？", a: `<p>连接节点后，已通过代理的应用会使用节点的公网出口 IP，目标网站看到的网络地区也会随出口地区变化。本地局域网地址和电脑中的个人文件不会因此改变。</p><p>为减少账号风控，建议长期使用固定地区和固定节点，避免短时间频繁切换国家、设备、时区和语言。</p>` },
+  { q: "为什么浏览器能用，终端、Git 或 AI 客户端却连不上？", a: `<p>浏览器通常会自动读取系统代理，但部分终端、后台进程、IDE 插件和命令行工具不会。可优先开启代理客户端的 TUN 模式，或为相关工具单独设置代理环境变量。</p><p>同时检查 DNS、分流规则和防火墙，确保目标域名没有被设置为直连。</p>` },
+  { q: "手机、平板和不同电脑系统也可以使用吗？", a: `<p>可以在 Windows、macOS、Linux、Android 和 iOS 等常见系统使用兼容的订阅客户端。不同客户端的设置名称可能不同，通常导入订阅后选择节点并开启系统代理即可。</p>` },
+];
+
+const aiPlatforms = [
+  { icon: "◉", name: "ChatGPT" },
+  { icon: "⌘", name: "Codex" },
+  { icon: "✦", name: "Claude" },
+  { icon: "⌁", name: "Claude Code" },
+  { icon: "✨", name: "Gemini" },
+  { icon: "💻", name: "Cursor" },
+  { icon: "↗", name: "Windsurf" },
+  { icon: "⌨", name: "GitHub Copilot" },
+  { icon: "◈", name: "Perplexity" },
+  { icon: "◎", name: "Poe" },
+];
+
+const globalPlatforms = ["TikTok", "YouTube", "X / Twitter", "Instagram", "Facebook", "Reddit", "Shopify", "Amazon / Etsy"];
+
 const seoTopics = [
   { title: "Claude 3.5 Sonnet 网页端无法打开解决办法", answer: "Claude 网页端打不开，常见原因是访问地区、IP 信誉、浏览器环境和 DNS 解析同时触发风控。建议使用稳定的静态住宅 IP，保持账号登录地区、系统时区、浏览器语言和支付地区一致，避免频繁切换节点。" },
   { title: "Claude App Unavailable 地区限制无缝突破", answer: "Claude App 提示 Unavailable 通常说明当前网络出口不在服务支持区域，或者 IP 被识别为机房、代理、共享出口。使用独享住宅网络并固定地区后，能显著降低地区限制、反复验证和登录失败的问题。" },
@@ -55,7 +78,7 @@ export default function LandingPage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [landingImages, setLandingImages] = useState<string[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [faqs, setFaqs] = useState<{ q: string; a: string }[]>(defaultFaqs);
+  const [faqs, setFaqs] = useState<{ q: string; a: string }[]>([...defaultFaqs, ...networkFaqs]);
   const [activeSeoTopic, setActiveSeoTopic] = useState<(typeof seoTopics)[number] | null>(null);
 
   useEffect(() => {
@@ -76,7 +99,11 @@ export default function LandingPage() {
       .then(({ data }: any) => {
         if (data && data.length > 0) {
           const filtered = data.filter((a: any) => a.title?.trim() && !a.title.startsWith("__"));
-          if (filtered.length > 0) setFaqs(filtered.map((a: any) => ({ q: a.title, a: a.content })));
+          if (filtered.length > 0) {
+            const adminFaqs = filtered.map((a: any) => ({ q: a.title, a: a.content }));
+            const adminTitles = new Set(adminFaqs.map((faq: any) => faq.q.trim()));
+            setFaqs([...adminFaqs, ...networkFaqs.filter((faq) => !adminTitles.has(faq.q))]);
+          }
         }
       });
   }, []);
@@ -153,6 +180,14 @@ export default function LandingPage() {
         .lp-model-tags { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
         .lp-model-tag { background: white; padding: 10px 25px; border-radius: 30px; font-weight: bold; color: #4a5568; box-shadow: 0 2px 10px rgba(0,0,0,0.05); font-size: 1.1rem; }
         .dark .lp-model-tag { background: #21262d; color: #c9d1d9; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .lp-platform-group { max-width: 1200px; margin: 0 auto 24px; }
+        .lp-platform-group:last-child { margin-bottom: 0; }
+        .lp-platform-label { margin-bottom: 12px; color: var(--lp-text-gray); font-size: 0.9rem; font-weight: 700; }
+        .lp-system-network { max-width: 1060px; margin: 30px auto 0; padding: 22px 26px; display: flex; align-items: center; gap: 18px; text-align: left; border-radius: 16px; color: var(--lp-text-dark); background: linear-gradient(135deg, rgba(52,208,88,0.12), rgba(66,133,244,0.08)); border: 1px solid rgba(52,208,88,0.3); }
+        .lp-system-network-icon { width: 52px; height: 52px; flex: 0 0 52px; display: flex; align-items: center; justify-content: center; border-radius: 14px; color: #fff; background: var(--lp-primary); font-size: 26px; }
+        .dark .lp-system-network-icon { color: #0d1117; }
+        .lp-system-network h3 { margin-bottom: 4px; font-size: 1.15rem; }
+        .lp-system-network p { color: var(--lp-text-gray); font-size: 0.95rem; line-height: 1.65; }
         .lp-features-section { background-color: white; padding: 80px 5%; }
         .dark .lp-features-section { background-color: #0d1117; }
         .lp-section-title { text-align: center; font-size: 2.2rem; margin-bottom: 50px; color: var(--lp-text-dark); }
@@ -221,6 +256,9 @@ export default function LandingPage() {
           .lp-logo { font-size: 1.1rem; }
           .lp-logo-icon { width: 28px; height: 28px; font-size: 14px; }
           .lp-nav-link { font-size: 0.9rem; padding: 8px 16px; }
+          .lp-model-tags { gap: 10px; }
+          .lp-model-tag { padding: 8px 14px; font-size: 0.95rem; }
+          .lp-system-network { align-items: flex-start; padding: 18px; }
         }
       `}</style>
 
@@ -318,12 +356,26 @@ export default function LandingPage() {
         {/* Supported Models */}
         <section className="lp-supported">
           <h2>完美支持主流 AI 大模型与跨境内容平台</h2>
-          <div className="lp-model-tags">
-            <div className="lp-model-tag" style={{ color: "#4285f4" }}>✨ Gemini</div>
-            <div className="lp-model-tag" style={{ color: "#d97757" }}>🤖 Claude</div>
-            <div className="lp-model-tag" style={{ color: "#111" }}>💻 Cursor</div>
-            <div className="lp-model-tag" style={{ color: "#000" }}>🎵 TikTok</div>
-            <div className="lp-model-tag" style={{ color: "#FF0000" }}>▶️ YouTube</div>
+          <div className="lp-platform-group">
+            <div className="lp-platform-label">AI 网页版 · API · 桌面端 · IDE 与命令行客户端</div>
+            <div className="lp-model-tags">
+              {aiPlatforms.map((platform) => (
+                <div key={platform.name} className="lp-model-tag"><span aria-hidden="true">{platform.icon}</span> {platform.name}</div>
+              ))}
+            </div>
+          </div>
+          <div className="lp-platform-group">
+            <div className="lp-platform-label">跨境内容 · 社交媒体 · 海外电商平台</div>
+            <div className="lp-model-tags">
+              {globalPlatforms.map((platform) => <div key={platform} className="lp-model-tag">{platform}</div>)}
+            </div>
+          </div>
+          <div className="lp-system-network">
+            <div className="lp-system-network-icon" aria-hidden="true">🌐</div>
+            <div>
+              <h3>不只是浏览器：可统一电脑系统网络环境</h3>
+              <p>使用支持系统代理或 TUN 模式的客户端，可让浏览器、Codex、Claude Code、Cursor、Git、终端和其他电脑软件使用同一稳定出口。开启 TUN 模式后，对不主动读取系统代理的应用兼容更完整。</p>
+            </div>
           </div>
         </section>
 
