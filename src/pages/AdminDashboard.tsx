@@ -1352,8 +1352,8 @@ export default function AdminDashboard() {
                           setTimeout(() => setBtnStatus(prev => ({ ...prev, changePwd: "" })), 2000);
                           return;
                         }
-                        if (newPwd.length < 4) {
-                          setBtnStatus(prev => ({ ...prev, changePwd: "❌ 密码不能少于4位" }));
+                        if (newPwd.length < 10) {
+                          setBtnStatus(prev => ({ ...prev, changePwd: "❌ 密码不能少于10位" }));
                           setTimeout(() => setBtnStatus(prev => ({ ...prev, changePwd: "" })), 2000);
                           return;
                         }
