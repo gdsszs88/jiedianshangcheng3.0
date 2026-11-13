@@ -1,10 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { adminCorsHeaders, createAdminToken, hashAdminPassword, requestIp, verifyAdminPassword, verifyAdminToken } from "../_shared/admin-security.ts";
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...adminCorsHeaders, "Content-Type": "application/json" } });
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: adminCorsHeaders });
+  const corsHeaders = adminCorsHeaders(req);
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json();

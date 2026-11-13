@@ -78,9 +78,14 @@ export function requestIp(req: Request): string {
   return (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown").trim().slice(0, 100);
 }
 
-export const adminCorsHeaders = {
-  "Access-Control-Allow-Origin": "https://www.ip520.top",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Cache-Control": "no-store",
-};
+export function adminCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin") || "";
+  const allowed = new Set(["https://www.ip520.top", "https://ip520.top", "http://localhost:8080", "http://localhost:5173"]);
+  return {
+    "Access-Control-Allow-Origin": allowed.has(origin) ? origin : "https://www.ip520.top",
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Cache-Control": "no-store",
+  };
+}
