@@ -50,11 +50,16 @@ def locate_site_block(caddyfile: str, apex_domain: str, www_domain: str) -> tupl
     begin_marker = "# BEGIN IP520 MANAGED SITE ROUTES"
     end_marker = "# END IP520 MANAGED SITE ROUTES"
     if begin_marker in caddyfile and end_marker in caddyfile:
-        start = caddyfile.index(begin_marker)
-        end = caddyfile.index(end_marker, start) + len(end_marker)
-        if end < len(caddyfile) and caddyfile[end] == "\n":
-            end += 1
-        return start, end
+        # Older installations may contain an empty placeholder marker block
+        # while MiniPaaS owns the real site block later in the file. Only use
+        # a marker block when it actually contains a Caddy site definition.
+        start = caddyfile.rfind(begin_marker)
+        end_marker_start = caddyfile.find(end_marker, start)
+        if end_marker_start >= 0 and "{" in caddyfile[start:end_marker_start]:
+            end = end_marker_start + len(end_marker)
+            if end < len(caddyfile) and caddyfile[end] == "\n":
+                end += 1
+            return start, end
 
     offset = 0
     start = -1
