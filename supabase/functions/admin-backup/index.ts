@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAdminToken } from "../_shared/admin-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,16 +51,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function verifyToken(token: string): string | null {
-  try {
-    const decoded = atob(token);
-    const [id] = decoded.split(":");
-    return id || null;
-  } catch {
-    return null;
-  }
-}
-
 type AdminClient = ReturnType<typeof createClient>;
 
 async function buildBackup(supabase: AdminClient, configId: string) {
@@ -104,7 +95,7 @@ Deno.serve(async (req) => {
 
   try {
     const { action, token, backup } = await req.json();
-    const configId = verifyToken(String(token || ""));
+    const configId = await verifyAdminToken(token);
     if (!configId) return json({ error: "未授权" }, 401);
 
     const supabase = createClient(

@@ -22,15 +22,7 @@ async function safeJson(res: Response): Promise<any> {
 }
 
 async function fetchPanel(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (error) {
-    const fallback = url.replace(/^https:\/\//, "http://");
-    if (fallback !== url && /certificate|ssl|tls/i.test(String(error))) {
-      return await fetch(fallback, init);
-    }
-    throw error;
-  }
+  return fetch(url, init);
 }
 
 async function loginPanel(panelUrl: string, username: string, password: string): Promise<string | null> {

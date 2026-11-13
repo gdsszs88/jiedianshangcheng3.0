@@ -76,16 +76,7 @@ async function resolveRenewalDefaultGB(supabase: any, uuid: string, inboundRemar
 
 // Helper: fetch with SSL fallback
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (err) {
-    const errStr = String(err);
-    if (errStr.includes("certificate") || errStr.includes("SSL") || errStr.includes("TLS")) {
-      const httpUrl = url.replace(/^https:\/\//, "http://");
-      if (httpUrl !== url) return await fetch(httpUrl, init);
-    }
-    throw err;
-  }
+  return fetch(url, init);
 }
 
 // Login to 3x-ui

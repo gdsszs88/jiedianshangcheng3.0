@@ -5,18 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Helper: fetch with automatic HTTP fallback when HTTPS has cert issues
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (err) {
-    const errStr = String(err);
-    if (errStr.includes("certificate") || errStr.includes("SSL") || errStr.includes("TLS")) {
-      const httpUrl = url.replace(/^https:\/\//, "http://");
-      if (httpUrl !== url) return await fetch(httpUrl, init);
-    }
-    throw err;
-  }
+  return fetch(url, init);
 }
 
 // Safe JSON parse from Response (handles empty/truncated body)

@@ -1,31 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAdminToken } from "../_shared/admin-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function verifyToken(token: string): string | null {
-  try {
-    const decoded = atob(token);
-    const [id] = decoded.split(":");
-    return id || null;
-  } catch {
-    return null;
-  }
-}
-
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (err) {
-    const errStr = String(err);
-    if (errStr.includes("certificate") || errStr.includes("SSL") || errStr.includes("TLS")) {
-      const httpUrl = url.replace(/^https:\/\//, "http://");
-      if (httpUrl !== url) return await fetch(httpUrl, init);
-    }
-    throw err;
-  }
+  return fetch(url, init);
 }
 
 async function getUuidRemarkMap(panelUrl: string, panelUser: string, panelPass: string): Promise<Record<string, string>> {
@@ -82,7 +64,7 @@ Deno.serve(async (req) => {
   try {
     const { action, token, page, pageSize, search, statusFilter, orderId, orderIds, startDate, endDate } = await req.json();
 
-    const configId = verifyToken(token);
+    const configId = await verifyAdminToken(token);
     if (!configId) {
       return new Response(JSON.stringify({ error: "未授权" }), {
         status: 401,

@@ -1,128 +1,45 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminCorsHeaders, createAdminToken, hashAdminPassword, requestIp, verifyAdminPassword, verifyAdminToken } from "../_shared/admin-security.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function verifyToken(token: string): string | null {
-  try {
-    const decoded = atob(token);
-    const [id] = decoded.split(":");
-    return id || null;
-  } catch {
-    return null;
-  }
-}
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...adminCorsHeaders, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+  if (req.method === "OPTIONS") return new Response(null, { headers: adminCorsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   try {
     const body = await req.json();
-    const { action } = body;
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    if (action === "login") {
-      const { password } = body;
-      const { data, error } = await supabase
-        .from("admin_config")
-        .select("admin_password_hash, id")
-        .limit(1)
-        .single();
-
-      if (error || !data) {
-        return new Response(JSON.stringify({ error: "配置不存在" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (data.admin_password_hash !== password) {
-        return new Response(JSON.stringify({ error: "密码错误" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const token = btoa(`${data.id}:${Date.now()}`);
-      
-      return new Response(JSON.stringify({ token }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    if (body.action === "login") {
+      const ip = requestIp(req);
+      const windowStart = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { count: failures } = await supabase.from("admin_login_attempts").select("id", { count: "exact", head: true }).eq("ip_address", ip).eq("succeeded", false).gte("attempted_at", windowStart);
+      if ((failures || 0) >= 5) return json({ error: "登录失败次数过多，请15分钟后再试" }, 429);
+      const password = String(body.password || "");
+      const { data, error } = await supabase.from("admin_config").select("admin_password_hash,id").limit(1).single();
+      if (error || !data) return json({ error: "配置不存在" }, 400);
+      const checked = await verifyAdminPassword(password, data.admin_password_hash || "");
+      await supabase.from("admin_login_attempts").insert({ ip_address: ip, succeeded: checked.valid });
+      if (!checked.valid) return json({ error: "密码错误" }, 401);
+      if (checked.needsUpgrade) await supabase.from("admin_config").update({ admin_password_hash: await hashAdminPassword(password) }).eq("id", data.id);
+      await supabase.from("admin_login_attempts").delete().eq("ip_address", ip).eq("succeeded", false);
+      return json({ token: await createAdminToken(data.id), expiresIn: 7200 });
     }
-
-    if (action === "change-password") {
-      const { token, oldPassword, newPassword } = body;
-
-      const configId = verifyToken(token);
-      if (!configId) {
-        return new Response(JSON.stringify({ error: "未授权" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (!newPassword || newPassword.length < 4) {
-        return new Response(JSON.stringify({ error: "新密码不能少于4位" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Verify old password
-      const { data, error } = await supabase
-        .from("admin_config")
-        .select("admin_password_hash")
-        .eq("id", configId)
-        .single();
-
-      if (error || !data) {
-        return new Response(JSON.stringify({ error: "配置不存在" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (data.admin_password_hash !== oldPassword) {
-        return new Response(JSON.stringify({ error: "旧密码错误" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Update password
-      const { error: updateError } = await supabase
-        .from("admin_config")
-        .update({ admin_password_hash: newPassword })
-        .eq("id", configId);
-
-      if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (body.action === "change-password") {
+      const configId = await verifyAdminToken(body.token);
+      if (!configId) return json({ error: "登录已失效，请重新登录" }, 401);
+      const oldPassword = String(body.oldPassword || "");
+      const newPassword = String(body.newPassword || "");
+      if (newPassword.length < 10) return json({ error: "新密码不能少于10位" }, 400);
+      const { data, error } = await supabase.from("admin_config").select("admin_password_hash").eq("id", configId).single();
+      if (error || !data) return json({ error: "配置不存在" }, 400);
+      if (!(await verifyAdminPassword(oldPassword, data.admin_password_hash || "")).valid) return json({ error: "旧密码错误" }, 401);
+      const { error: updateError } = await supabase.from("admin_config").update({ admin_password_hash: await hashAdminPassword(newPassword) }).eq("id", configId);
+      if (updateError) return json({ error: "密码更新失败" }, 500);
+      return json({ success: true });
     }
-
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "Unknown action" }, 400);
+  } catch (error) {
+    console.error("admin-auth error", error);
+    return json({ error: "服务器内部错误" }, 500);
   }
 });

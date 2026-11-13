@@ -8,25 +8,7 @@ const corsHeaders = {
 
 // Helper: fetch with automatic fallback strategies
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  const attempts: Array<{ url: string; label: string }> = [];
-
-  if (url.startsWith("https://")) {
-    attempts.push({ url, label: "HTTPS" });
-    attempts.push({ url: url.replace(/^https:\/\//, "http://"), label: "HTTP fallback" });
-  } else {
-    attempts.push({ url, label: "HTTP" });
-  }
-
-  let lastErr: unknown;
-  for (const attempt of attempts) {
-    try {
-      const res = await fetch(attempt.url, init);
-      return res;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr;
+  return fetch(url, init);
 }
 
 // Login to 3x-ui panel

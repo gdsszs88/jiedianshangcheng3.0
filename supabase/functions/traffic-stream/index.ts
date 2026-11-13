@@ -15,18 +15,7 @@ const corsHeaders = {
 };
 
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  const attempts: string[] = url.startsWith("https://")
-    ? [url, url.replace(/^https:\/\//, "http://")]
-    : [url];
-  let lastErr: unknown;
-  for (const u of attempts) {
-    try {
-      return await fetch(u, init);
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr;
+  return fetch(url, init);
 }
 
 async function login3xui(panelUrl: string, username: string, password: string): Promise<string | null> {

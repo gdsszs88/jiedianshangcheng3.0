@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { BookOpen } from "lucide-react";
 import { supabase, supabaseUrl } from "@/integrations/supabase/client";
+import { sanitizeRichHtml } from "@/lib/sanitize";
 import {
   User,
   CreditCard,
@@ -1364,7 +1365,7 @@ export default function ClientPortal() {
             <div className="w-full bg-red-50 dark:bg-red-950/30 border-2 border-red-500 rounded-2xl p-4 shadow-lg">
               <div
                 className="text-red-600 dark:text-red-400 font-bold text-base leading-relaxed [&_*]:!text-red-600 dark:[&_*]:!text-red-400 [&_*]:!font-bold"
-                dangerouslySetInnerHTML={{ __html: announcement }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(announcement) }}
               />
             </div>
           )}
@@ -1445,7 +1446,7 @@ export default function ClientPortal() {
             <div className="md:w-1/2 w-full flex items-center">
               <div className="w-full bg-card rounded-2xl shadow-xl overflow-hidden p-6">
                 <h2 className="text-lg font-bold text-foreground mb-4 text-center">📺 使用教程</h2>
-                <div dangerouslySetInnerHTML={{ __html: videoHtml }} className="rounded-xl overflow-hidden" />
+                <div dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(videoHtml, true) }} className="rounded-xl overflow-hidden" />
               </div>
             </div>
           )}
@@ -2934,7 +2935,7 @@ export default function ClientPortal() {
                         <div className="px-5 pb-5 border-t border-border">
                           <div
                             className="prose prose-sm max-w-none text-foreground mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [&_*]:break-words [&_*]:[overflow-wrap:anywhere]"
-                            dangerouslySetInnerHTML={{ __html: fixMobileVideo(t.content) }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(fixMobileVideo(t.content), true) }}
                           />
                         </div>
                       )}

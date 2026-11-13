@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeRichHtml } from "@/lib/sanitize";
 
 function parseLandingImages(raw: string): string[] {
   if (!raw) return [];
@@ -439,7 +440,7 @@ export default function LandingPage() {
                   <svg className="lp-faq-icon" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z" /></svg>
                 </div>
                 <div className="lp-faq-answer">
-                  <div className="lp-faq-answer-inner" dangerouslySetInnerHTML={{ __html: faq.a.includes('<') ? faq.a : faq.a.replace(/\n/g, '<br/>') }} />
+                  <div className="lp-faq-answer-inner" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(faq.a.includes('<') ? faq.a : faq.a.replace(/\n/g, '<br/>')) }} />
                 </div>
               </div>
             ))}

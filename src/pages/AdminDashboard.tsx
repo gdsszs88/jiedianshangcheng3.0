@@ -389,6 +389,7 @@ export default function AdminDashboard() {
       const res = await getAdminConfig(token);
       if (res?.config) setConfig(res.config);
     } catch {
+      sessionStorage.removeItem("admin_token");
       navigate("/3075554556");
     } finally {
       setLoading(false);

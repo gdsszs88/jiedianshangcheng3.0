@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAdminToken } from "../_shared/admin-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,37 +7,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function verifyToken(token: string): string | null {
-  try {
-    const decoded = atob(token);
-    const [id] = decoded.split(":");
-    return id || null;
-  } catch {
-    return null;
-  }
-}
-
 // Helper: fetch with automatic fallback strategies
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  const attempts: Array<{ url: string; label: string }> = [];
-
-  if (url.startsWith("https://")) {
-    attempts.push({ url, label: "HTTPS" });
-    attempts.push({ url: url.replace(/^https:\/\//, "http://"), label: "HTTP fallback" });
-  } else {
-    attempts.push({ url, label: "HTTP" });
-  }
-
-  let lastErr: unknown;
-  for (const attempt of attempts) {
-    try {
-      const res = await fetch(attempt.url, init);
-      return res;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr;
+  return fetch(url, init);
 }
 
 // Login to 3x-ui panel
@@ -197,7 +170,7 @@ Deno.serve(async (req) => {
     if (action === "test-manual" || action === "test-cron") {
       let configId = null;
       if (action === "test-manual") {
-        configId = verifyToken(token || "");
+        configId = await verifyAdminToken(token);
         if (!configId) {
           return new Response(JSON.stringify({ error: "未授权" }), {
             status: 401,
@@ -362,7 +335,7 @@ Deno.serve(async (req) => {
 
     // Get or create test config
     if (action === "get-config") {
-      const configId = verifyToken(token || "");
+      const configId = await verifyAdminToken(token);
       if (!configId) {
         return new Response(JSON.stringify({ error: "未授权" }), {
           status: 401,
@@ -419,7 +392,7 @@ Deno.serve(async (req) => {
 
     // Update test config
     if (action === "update-config") {
-      const configId = verifyToken(token || "");
+      const configId = await verifyAdminToken(token);
       if (!configId) {
         return new Response(JSON.stringify({ error: "未授权" }), {
           status: 401,

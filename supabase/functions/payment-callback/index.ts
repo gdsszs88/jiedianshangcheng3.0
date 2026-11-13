@@ -288,18 +288,9 @@ async function resolveRenewalDefaultGB(supabase: any, uuid: string, inboundRemar
   return Number(rec?.default_traffic_gb) || 0;
 }
 
-// Helper: fetch with automatic HTTP fallback
+// Never downgrade HTTPS panel connections to plaintext HTTP.
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (err) {
-    const errStr = String(err);
-    if (errStr.includes("certificate") || errStr.includes("SSL") || errStr.includes("TLS")) {
-      const httpUrl = url.replace(/^https:\/\//, "http://");
-      if (httpUrl !== url) return await fetch(httpUrl, init);
-    }
-    throw err;
-  }
+  return fetch(url, init);
 }
 
 // Login to 3x-ui and get session cookie

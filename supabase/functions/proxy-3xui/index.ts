@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyAdminToken } from "../_shared/admin-security.ts";
 
 const GB = 1073741824;
 
@@ -13,45 +14,12 @@ function normalizeTrafficLimitBytes(value: any): number {
 
 // Helper: fetch with automatic fallback strategies for problematic servers
 async function fetchUnsafe(url: string, init?: RequestInit): Promise<Response> {
-  const attempts: Array<{ url: string; label: string }> = [];
-
-  // If HTTPS, try HTTPS first, then HTTP fallback
-  if (url.startsWith("https://")) {
-    attempts.push({ url, label: "HTTPS" });
-    attempts.push({ url: url.replace(/^https:\/\//, "http://"), label: "HTTP fallback" });
-  } else {
-    attempts.push({ url, label: "HTTP" });
-  }
-
-  let lastErr: unknown;
-  for (const attempt of attempts) {
-    try {
-      console.log(`fetchUnsafe: trying ${attempt.label} → ${attempt.url}`);
-      const res = await fetch(attempt.url, init);
-      return res;
-    } catch (err) {
-      const errStr = String(err);
-      console.warn(`fetchUnsafe ${attempt.label} failed:`, errStr.substring(0, 300));
-      lastErr = err;
-      // Continue to next attempt
-    }
-  }
-  throw lastErr;
+  return fetch(url, init);
 }
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function verifyToken(token: string): string | null {
-  try {
-    const decoded = atob(token);
-    const [id] = decoded.split(":");
-    return id || null;
-  } catch {
-    return null;
-  }
-}
 
 // Helper: Login to 3x-ui panel and get session cookie
 async function login3xui(panelUrl: string, username: string, password: string): Promise<{ cookie: string | null; error?: string }> {
@@ -213,7 +181,7 @@ Deno.serve(async (req) => {
 
     if (action === "test") {
       // Verify admin token
-      const configId = verifyToken(token);
+      const configId = await verifyAdminToken(token);
       if (!configId) {
         return new Response(JSON.stringify({ error: "未授权" }), {
           status: 401,
