@@ -45,7 +45,7 @@ function blocksToHtml(blocks: ContentBlock[]): string {
   return blocks
     .map((b) => {
       if (b.type === "image" && b.value.trim()) {
-        return `<img src="${b.value.trim()}" style="max-width:100%;border-radius:8px;margin:8px 0;" />`;
+        return `<img src="${b.value.trim()}" alt="教程图片" loading="lazy" />`;
       }
       if (b.type === "video" && b.value.trim()) {
         const url = b.value.trim();

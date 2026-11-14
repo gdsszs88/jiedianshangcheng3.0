@@ -2934,7 +2934,7 @@ export default function ClientPortal() {
                       {expandedTutorialId === t.id && (
                         <div className="px-5 pb-5 border-t border-border">
                           <div
-                            className="prose prose-sm max-w-none text-foreground mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [&_*]:break-words [&_*]:[overflow-wrap:anywhere]"
+                            className="prose prose-sm max-w-none text-foreground mt-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] [&_*]:break-words [&_*]:[overflow-wrap:anywhere] [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-2"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(fixMobileVideo(t.content), true) }}
                           />
                         </div>
